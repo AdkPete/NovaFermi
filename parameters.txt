@@ -1,0 +1,46 @@
+
+## Source Specific Parameters:
+
+ra	XX
+dec	XX
+name	XX
+start	year-mm-dd hh:mm:ss
+end	year-mm-dd hh:mm:ss
+peak	year-mm-dd hh:mm:ss
+
+## General Analysis Parameters:
+
+emin	100	#Minimum Energy (MeV)
+emax	300000	#Maximum Energy (MeV)
+pix_sc	0.2	##Pixel size for spatial binning (degrees)
+N_ebin	37	##Number of energy bins. Should be >= 10 per decade
+
+
+## Max TS Search Parameters
+
+maxw	10
+minw	1
+stepw	1
+
+
+## TS Map Parameters:
+TSPix	25
+TSscale	0.25
+
+## Light Curve Parameters
+
+# window is number of days of data to use (total)
+window 	15
+lcstep	5
+
+
+## Performance Details
+nproc	12
+
+## What analysis should we run?
+
+find_mts	No
+gen_av	Yes
+gen_ts	No
+gen_lc	No
+gen_ul	no
