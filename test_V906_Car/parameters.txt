@@ -14,6 +14,7 @@ emin		100	#Minimum Energy (MeV)
 emax		300000	#Maximum Energy (MeV)
 pix_sc		0.2	##Pixel size for spatial binning (degrees)
 N_ebin		37	##Number of energy bins. Should be >= 10 per decade
+roi		10	## Radius of region of interest in degrees
 cal_dir		/Users/Peter/Documents/Research/Novae/Fermi/Diffuse/	## Directory containing calibration files
 
 ## Average model fit parameters. Only runs if gen_av is yes
@@ -30,20 +31,22 @@ TSscale		0.25	## Pixel size (degrees)
 
 ## Light Curve Parameters
 
-window 		15	## Total # of days of data to include in each bin
+window 		2	## Total # of days of data to include in each bin
 lcstep		2	## Time (days) between light curve points
 cleanlc		Yes	## Automatically delete large intermediate files
 up_lim_lc	Yes	## Flag to compute upper limits in light curve
 ts_lim		4	## TS value below which we compute upper limits
+lc_start	-1	## Start time for light curve. -1 uses start time above
+lc_end		-1	## End time for light curve. -1 uses start time above
 
 ## Performance Details
-nproc		12	## Number of processes to use (for multiprocessing supported functions)
+nproc		5	## Number of processes to use (for multiprocessing supported functions)
 
 
 
 ## What analysis should we run?
 
-find_mts	No	## Run search for maximum TS value
+find_mts	No	## Run search for maximum TS value in given time window
 gen_av		Yes	## Generate average likelihood fit
-gen_ts		No	## Generate TS maps
+gen_ts		Yes	## Generate TS maps
 gen_lc		No	## Build a light curve

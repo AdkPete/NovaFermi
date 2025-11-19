@@ -1,0 +1,10 @@
+test_V906_Car/V906*
+test_V906_Car/*.csv
+test_V906_Car/*.dat
+test_V906_Car/events.txt
+test_V906_Car/*.pdf
+test_V906_Car/fit_model*
+test_V906_Car/temp*
+test_V906_Car/counts_spectra*
+test_V906_Car/*.reg
+test_V906_Car/*.npy

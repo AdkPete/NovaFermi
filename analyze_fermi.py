@@ -17,6 +17,7 @@ import os, sys
 import datetime as dtime
 import tabulate
 import multiprocessing as mp
+from astropy.io import fits
 
 import gt_apps as my_apps
 from GtApp import GtApp
@@ -104,9 +105,10 @@ def tpeak_to_met(time , params):
     '''
     
     peak = params["peak"]
-    dt = dtime.timedelta(days = time)
-    caltime = peak + dt
-    return cal_to_met(caltime)
+    ts = time * (24 * 60 * 60)
+    return peak + ts
+
+
 
 def met_to_tpeak(met , params):
     
@@ -124,15 +126,11 @@ def met_to_tpeak(met , params):
     
     '''
     
-    dtref = dtime.datetime(year=2001, month = 1, day=1, hour = 0, minute=0,
-                    second=0 ,  tzinfo=dtime.timezone.utc)
+
     peak = params["peak"]
+    delta_peak = met - peak
     
-    met_time = dtref + dtime.timedelta(seconds = met)
-    
-    delta_peak = peak - met_time
-    
-    return delta_peak.total_seconds() / (24 * 60 * 60)
+    return delta_peak / (24 * 60 * 60)
     
 def read_parameters(pfile):
     '''
@@ -238,7 +236,7 @@ def print_params(params):
         rows.append([key,str(params[key])])
     print (tabulate.tabulate(rows) + "\n")
 
-def gen_model(params, clobber):
+def gen_model(params, clobber, fheader):
     '''
     Function to create an input model file
     
@@ -255,13 +253,13 @@ def gen_model(params, clobber):
     
 
     dfname = params["cal_dir"] + "gll_psc_v32.xml"
-    gti = "{source}{fheader}_filtered_gti.fits"
+    gti = f"{params['name']}{fheader}_filtered_gti.fits"
     model_fname = params["input_model"]
     
     if os.path.exists(model_fname) and not clobber:
         return 0
-    xml_command = f' make4FGLxml {dfname} --event_file {gti} --output_name'
-    xml_command += f'{model_fname} --free_radius 5.0 --norms_free_only'
+    xml_command = f' make4FGLxml {dfname} --event_file {gti} --output_name '
+    xml_command += f'{model_fname} --free_radius 5.0 --norms_free_only '
     xml_command += f'True --sigma_to_free 25 --variable_free True'
     subprocess.run(xml_command, shell=True)
     
@@ -541,9 +539,11 @@ def binned_likelihood(params, tstart , tend , clobber = False, fheader = ""):
     data_selection(params, tstart, tend, clobber , fheader)
     bin_data(params , clobber , fheader)
     lt_exp_maps(params , clobber , fheader)
-    gen_model(params, False)
+    gen_model(params, clobber, fheader)
     gen_srcmap(params, clobber, fheader)
     Flux , error , TS = fit_model(params , fheader, False)
+    
+    generate_residuals(params, clobber, fheader)
     
     return Flux, error, TS
 
@@ -637,13 +637,14 @@ def likelihood_wrapper(run_pars):
     '''
     log_file = run_pars[4] + run_pars[5] + ".csv"
     F , unc , ts = binned_likelihood(*run_pars[0:5])
-    if ts < params["ts_lim"]:
+    if ts < run_pars[0]["ts_lim"]:
         F = compute_upper_lim(run_pars[0] , run_pars[4])
         unc = -1
     f = open(log_file , "w")
-    f.write(str(F) + "," + str(unc) + "," + str(ts))
-    f.close()
     tmid = (run_pars[1] + run_pars[2]) / 2.0
+    f.write(str(F) + "," + str(unc) + "," + str(ts) + "," + str(tmid))
+    f.close()
+    
     if run_pars[-1]:
         cleanup(run_pars[0] , run_pars[4])
     return [F , unc , ts , tmid]
@@ -724,7 +725,7 @@ def light_curve_multiproc(params , clobber, log="mp_log"):
     plt.errorbar(tpeak[det] , Flux[det] , unc[det] , ls = 'none', color = "blue")
     plt.scatter(tpeak[lim] , Flux[lim] , color = "orange" , marker = "v")
     plt.xlabel("Time since peak (days)")
-    plt.ylabel("Flux (ph / s / cm^2")
+    plt.ylabel("Flux (ph / s / cm$^{-2}$)")
     plt.savefig("LC.pdf")
     plt.close()
     
@@ -913,7 +914,7 @@ def cleanup(params , fheader):
     
     
     for i in os.listdir():
-        if params["name"] not in i and fheader not in i:
+        if params["name"] not in i or fheader not in i:
             continue
         if "srcmap" in i: ## Source Maps
             os.remove(i)
@@ -940,8 +941,8 @@ def setup_tsmap_xml(params, input_file):
     None
     '''
 
-    rf = open(f"{params["name"]}_fit_TSMap.xml" , "w")
-    backf = open(f"{params["name"]}_fit_backgroundTSMap.xml" , "w")
+    rf = open(f"{params['name']}_fit_TSMap.xml" , "w")
+    backf = open(f"{params['name']}_fit_backgroundTSMap.xml" , "w")
     
     insource = False
     infil = open(input_file)
@@ -958,7 +959,7 @@ def setup_tsmap_xml(params, input_file):
     backf.close()
     infil.close()
     
-def TS_Map(params, input_file):
+def TS_Map(params, input_file, clobber):
     '''
     Function to generate TS Maps.
     Will build two files, one with the full source model list, called 
@@ -975,17 +976,18 @@ def TS_Map(params, input_file):
     None
     '''
 
-    setup_tsmap_xml(input_file)
+    
+    setup_tsmap_xml(params , input_file)
     my_apps.TsMap['statistic'] = "BINNED"
     my_apps.TsMap['cmap'] = f'{params["name"]}_filtered_ccube.fits'
     my_apps.TsMap['scfile'] = params["scfile"]
-    my_apps.TsMap['evfile'] = f"{params["name"]}_filtered_gti.fits"
-    my_apps.TsMap['bexpmap'] = f"{params["name"]}_BinnedExpMap.fits"
-    my_apps.TsMap['expcube'] = f"{params["name"]}_ltCube.fits"
-    my_apps.TsMap['srcmdl'] = f"{params["name"]}_fit_TSMap.xml"
+    my_apps.TsMap['evfile'] = f"{params['name']}_filtered_gti.fits"
+    my_apps.TsMap['bexpmap'] = f"{params['name']}_BinnedExpMap.fits"
+    my_apps.TsMap['expcube'] = f"{params['name']}_ltCube.fits"
+    my_apps.TsMap['srcmdl'] = f"{params['name']}_fit_TSMap.xml"
     my_apps.TsMap['irfs'] = "P8R3_SOURCE_V3"
     my_apps.TsMap['optimizer'] = "NEWMINUIT"
-    my_apps.TsMap['outfile'] = f"{params["name"]}_TSmap_resid.fits"
+    my_apps.TsMap['outfile'] = f"{params['name']}_TSmap_resid.fits"
     my_apps.TsMap['nxpix'] = params["TSPix"]
     my_apps.TsMap['nypix'] = params["TSPix"]
     my_apps.TsMap['binsz'] = params["TSscale"]
@@ -993,29 +995,96 @@ def TS_Map(params, input_file):
     my_apps.TsMap['xref'] = params["ra"]
     my_apps.TsMap['yref'] = params["dec"]
     my_apps.TsMap['proj'] = 'AIT'
-    if not os.path.exists(f"{params["name"]}_TSmap_resid.fits"):
+    if not os.path.exists(f"{params['name']}_TSmap_resid.fits") or clobber:
         my_apps.TsMap.run()
 
     my_apps.TsMap['statistic'] = "BINNED"
     my_apps.TsMap['cmap'] = f'{params["name"]}_filtered_ccube.fits'
     my_apps.TsMap['scfile'] = params["scfile"]
-    my_apps.TsMap['evfile'] = f"{params["name"]}_filtered_gti.fits"
-    my_apps.TsMap['bexpmap'] = f"{params["name"]}_BinnedExpMap.fits"
-    my_apps.TsMap['expcube'] = f"{params["name"]}_ltCube.fits"
-    my_apps.TsMap['srcmdl'] = f"{params["name"]}_fit_backgroundTSMap.xml"
+    my_apps.TsMap['evfile'] = f"{params['name']}_filtered_gti.fits"
+    my_apps.TsMap['bexpmap'] = f"{params['name']}_BinnedExpMap.fits"
+    my_apps.TsMap['expcube'] = f"{params['name']}_ltCube.fits"
+    my_apps.TsMap['srcmdl'] = f"{params['name']}_fit_backgroundTSMap.xml"
     my_apps.TsMap['irfs'] = "P8R3_SOURCE_V3"
     my_apps.TsMap['optimizer'] = "NEWMINUIT"
-    my_apps.TsMap['outfile'] = f"{params["name"]}_TSmap_background_resid.fits"
-    my_apps.TsMap['nxpix'] = params["TSPix"]
-    my_apps.TsMap['nypix'] = params["TSPix"]
+    my_apps.TsMap['outfile'] = f"{params['name']}_TSmap_background_resid.fits"
+    my_apps.TsMap['nxpix'] = params['TSPix']
+    my_apps.TsMap['nypix'] = params['TSPix']
     my_apps.TsMap['binsz'] = params["TSscale"]
     my_apps.TsMap['coordsys'] = "CEL"
     my_apps.TsMap['xref'] = params["ra"]
     my_apps.TsMap['yref'] = params["dec"]
     my_apps.TsMap['proj'] = 'STG'
-    if not os.path.exists(f"{params["name"]}_TSmap_background_resid.fits"):
+    if not os.path.exists(f"{params['name']}_TSmap_background_resid.fits") or clobber:
         my_apps.TsMap.run()
         
+
+def generate_residuals(params, clobber, fheader):
+    '''
+    Function to create residuals between the counts map and the model
+    map. Simply generates a model map with the FermiTools, then takes
+    the difference between that and a similar counts map
+    
+    Parameters
+    ___________
+    params : dict : parameter dict from read_parameters
+    clobber : boolean : If true, overwrite existing files
+    fheader : string : Unique ID added to avoid filename conflicts
+    
+    Returns
+    ________
+    None
+    '''
+    
+    ## Generate a source model.
+    ## I don't know how to do this in the python interface, so we 
+    ## call the FermiTools from the shell with subprocess. Works,
+    ## but is not elegant.
+
+    mmc = "gtmodel "
+    mmc += f"srcmaps={params['name']}{fheader}_srcmap.fits "
+    mmc += f"srcmdl=fit_model{fheader}.xml "
+    mmc += f"outfile={params['name']}_Model{fheader}.fits "
+    mmc += "irfs=CALDB "
+    mmc += f"expcube={params['name']}{fheader}_ltcube.fits "
+    mmc += f"bexpmap={params['name']}{fheader}_BinnedExpMap.fits"
+    print (mmc)
+    if not os.path.exists(f"{params['name']}_Model{fheader}.fits") or clobber:
+        subprocess.run(mmc,shell=True)
+    
+    ## Generate cmap for residuals:
+    cmap_name = f'{params["name"]}{fheader}_filtered_small_cmap.fits'
+    npix = int(( np.sqrt(2) * params["roi"] / params["pix_sc"] ))
+    my_apps.evtbin['evfile'] = f'{params["name"]}{fheader}_filtered_gti.fits'
+    my_apps.evtbin['outfile'] = cmap_name
+    my_apps.evtbin['scfile'] = params["scfile"]
+    my_apps.evtbin['algorithm'] = 'CMAP'
+    my_apps.evtbin['nxpix'] = npix
+    my_apps.evtbin['nypix'] = npix
+    my_apps.evtbin['binsz'] = params["pix_sc"]
+    my_apps.evtbin['coordsys'] = 'CEL'
+    my_apps.evtbin['xref'] = params["ra"]
+    my_apps.evtbin['yref'] = params["dec"]
+    my_apps.evtbin['axisrot'] = 0
+    my_apps.evtbin['proj'] = 'AIT'
+    my_apps.evtbin['ebinalg'] = 'LOG'
+    my_apps.evtbin['emin'] = params["emin"]
+    my_apps.evtbin['emax'] = params["emax"]
+    my_apps.evtbin['enumbins'] = params["N_ebin"]
+    if not os.path.exists(cmap_name) or clobber:
+        my_apps.evtbin.run()
+    
+    ##Finally, generate the actual residuals
+
+    model_hdu = fits.open(f"{params['name']}_Model{fheader}.fits")
+    cmap_hdu = fits.open(cmap_name)
+    
+
+    plt.imshow(cmap_hdu[0].data[::-1] - model_hdu[0].data[::-1], cmap = "seismic")
+    plt.colorbar(label="Residual (Data - Model)")
+    plt.savefig(f"Residual_{fheader}.pdf")
+    plt.close()
+    
 if __name__ == "__main__":
     
     paramfile = sys.argv[1]
@@ -1042,9 +1111,10 @@ if __name__ == "__main__":
         if TS < params["av_ts_lim"] and params["up_lim_av"]:
             compute_upper_lim(params , "")
         
+        params["input_model"] = "fit_model.xml"
     ## Compute TS Maps
     if params["gen_ts"]:
-        TS_Map(params, "fit_model.xml")
+        TS_Map(params, "fit_model.xml", False)
     
     ## Build a light curve
     if params["nproc"] == 1 and params["gen_lc"]:

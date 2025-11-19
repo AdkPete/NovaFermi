@@ -13,7 +13,8 @@ peak		year-mm-dd hh:mm:ss (UTC)
 emin		100	#Minimum Energy (MeV)
 emax		300000	#Maximum Energy (MeV)
 pix_sc		0.2	##Pixel size for spatial binning (degrees)
-N_ebin		37	##Number of energy bins. Should be >= 10 per decade
+N_ebin		37	##Number of energy bins. Should be >= 10 per decade\
+roi		10	## Radius of region of interest in degrees
 cal_dir		/Users/Peter/Documents/Research/Novae/Fermi/Diffuse/	## Directory containing calibration files
 
 ## Average model fit parameters. Only runs if gen_av is yes
@@ -47,5 +48,5 @@ nproc		12	## Number of processes to use (for multiprocessing supported functions
 
 find_mts	No	## Run search for maximum TS value
 gen_av		Yes	## Generate average likelihood fit
-gen_ts		No	## Generate TS maps
-gen_lc		No	## Build a light curve
+gen_ts		Yes	## Generate TS maps
+gen_lc		Yes	## Build a light curve
