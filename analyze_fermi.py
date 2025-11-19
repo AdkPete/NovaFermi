@@ -27,8 +27,7 @@ from BinnedAnalysis import *
 
 ### Some global variables: May need to update to run on your systems
 
-## Directory containing diffuse emission and catalog files
-cal_dir = "/Users/Peter/Documents/Research/Novae/Fermi/Diffuse/"
+
 
 ### Start with some useful background / setup functions
 
@@ -187,6 +186,11 @@ def read_parameters(pfile):
     if "input_model" not in params.keys():
         params["input_model"] = params["name"] + "_input_model.xml"
         
+    if params["start"] < 10000: ## Time since peak
+        params["start"] = tpeak_to_met(params["start"], params)
+    if params["end"] < 10000: ## Time since peak
+        params["end"] = tpeak_to_met(params["end"], params)
+        
     return params
 
 def print_params(params):
@@ -224,7 +228,7 @@ def gen_model(params, clobber):
     '''
     
 
-    dfname = cal_dir + "gll_psc_v32.xml"
+    dfname = params["cal_dir"] + "gll_psc_v32.xml"
     gti = "{source}{fheader}_filtered_gti.fits"
     model_fname = params["input_model"]
     
