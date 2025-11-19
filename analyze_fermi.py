@@ -832,6 +832,7 @@ def cleanup(params , fheader):
     
     Parameters
     __________
+    params : dict : parameter dict from read_parameters
     fheader: string : file id
     
     Returns
@@ -849,8 +850,103 @@ def cleanup(params , fheader):
         elif "_filtered" in i:
             os.remove(i)
         
-        
+def setup_tsmap_xml(params, input_file):
+    '''
+    Function to build a xml input file suitable for computing
+    background TSMaps. Basically just takes an xml file and strips
+    the model for our source. Will also freeze out model parameters
+    (otherwise, runtime quickly becomes intractable. Takes in the xml
+    file for the model that we want to use.
+    
+    Parameters
+    __________
+    params : dict : parameter dict from read_parameters
+    input_file : string : name of xml input file
+    
+    Returns
+    _______
+    None
+    '''
 
+    rf = open(f"{params["name"]}_fit_TSMap.xml" , "w")
+    backf = open(f"{params["name"]}_fit_backgroundTSMap.xml" , "w")
+    
+    insource = False
+    infil = open(input_file)
+    for line in infil.readlines():
+        line = line.replace('free="1"' , 'free="0"')
+        rf.write(line)
+        if params["name"] in line:
+            insource = True
+        if not insource:
+            backf.write(line)
+        if insource and "</source>" in line:
+            insource = False
+    rf.close()
+    backf.close()
+    infil.close()
+    
+def TS_Map(params, input_file):
+    '''
+    Function to generate TS Maps.
+    Will build two files, one with the full source model list, called 
+    name_TSmap_resid.fits, and one with the nova model removed, called
+    name_TSmap_background_resid.fits.
+    
+    Parameters
+    __________
+    params : dict : parameter dict from read_parameters
+    input_file : string : name of xml input file
+    
+    Returns
+    _______
+    None
+    '''
+    #audio_alert
+    #input("Please setup TS map model files:")
+    setup_tsmap_xml(input_file)
+    roi = params["roi"]
+    npix = int(( np.sqrt(2) * roi / params["pix_sc"] ))
+    my_apps.TsMap['statistic'] = "BINNED"
+    my_apps.TsMap['cmap'] = f'{params["name"]}_filtered_ccube.fits'
+    my_apps.TsMap['scfile'] = params["scfile"]
+    my_apps.TsMap['evfile'] = f"{params["name"]}_filtered_gti.fits"
+    my_apps.TsMap['bexpmap'] = f"{params["name"]}_BinnedExpMap.fits"
+    my_apps.TsMap['expcube'] = f"{params["name"]}_ltCube.fits"
+    my_apps.TsMap['srcmdl'] = f"{params["name"]}_fit_TSMap.xml"
+    my_apps.TsMap['irfs'] = "P8R3_SOURCE_V3"
+    my_apps.TsMap['optimizer'] = "NEWMINUIT"
+    my_apps.TsMap['outfile'] = f"{params["name"]}_TSmap_resid.fits"
+    my_apps.TsMap['nxpix'] = params["TSPix"]
+    my_apps.TsMap['nypix'] = params["TSPix"]
+    my_apps.TsMap['binsz'] = params["TSscale"]
+    my_apps.TsMap['coordsys'] = "CEL"
+    my_apps.TsMap['xref'] = params["ra"]
+    my_apps.TsMap['yref'] = params["dec"]
+    my_apps.TsMap['proj'] = 'AIT'
+    if not os.path.exists(f"{params["name"]}_TSmap_resid.fits"):
+        my_apps.TsMap.run()
+
+    my_apps.TsMap['statistic'] = "BINNED"
+    my_apps.TsMap['cmap'] = f'{params["name"]}_filtered_ccube.fits'
+    my_apps.TsMap['scfile'] = params["scfile"]
+    my_apps.TsMap['evfile'] = f"{params["name"]}_filtered_gti.fits"
+    my_apps.TsMap['bexpmap'] = f"{params["name"]}_BinnedExpMap.fits"
+    my_apps.TsMap['expcube'] = f"{params["name"]}_ltCube.fits"
+    my_apps.TsMap['srcmdl'] = f"{params["name"]}_fit_backgroundTSMap.xml"
+    my_apps.TsMap['irfs'] = "P8R3_SOURCE_V3"
+    my_apps.TsMap['optimizer'] = "NEWMINUIT"
+    my_apps.TsMap['outfile'] = f"{params["name"]}_TSmap_background_resid.fits"
+    my_apps.TsMap['nxpix'] = params["TSPix"]
+    my_apps.TsMap['nypix'] = params["TSPix"]
+    my_apps.TsMap['binsz'] = params["TSscale"]
+    my_apps.TsMap['coordsys'] = "CEL"
+    my_apps.TsMap['xref'] = params["ra"]
+    my_apps.TsMap['yref'] = params["dec"]
+    my_apps.TsMap['proj'] = 'STG'
+    if not os.path.exists(f"{params["name"]}_TSmap_background_resid.fits"):
+        my_apps.TsMap.run()
+        
 if __name__ == "__main__":
     
     paramfile = sys.argv[1]
