@@ -1,46 +1,46 @@
 
 ## Source Specific Parameters:
 
-ra	XX
-dec	XX
-name	XX
-start	year-mm-dd hh:mm:ss
-end	year-mm-dd hh:mm:ss
-peak	year-mm-dd hh:mm:ss
+ra		XX
+dec		XX
+name		XX
+start		year-mm-dd hh:mm:ss or time relative to peak (days)
+end		year-mm-dd hh:mm:ss or time relative to peak (days)
+peak		year-mm-dd hh:mm:ss (UTC)
 
 ## General Analysis Parameters:
 
-emin	100	#Minimum Energy (MeV)
-emax	300000	#Maximum Energy (MeV)
-pix_sc	0.2	##Pixel size for spatial binning (degrees)
-N_ebin	37	##Number of energy bins. Should be >= 10 per decade
+emin		100	#Minimum Energy (MeV)
+emax		300000	#Maximum Energy (MeV)
+pix_sc		0.2	##Pixel size for spatial binning (degrees)
+N_ebin		37	##Number of energy bins. Should be >= 10 per decade
 
 
-## Max TS Search Parameters
+## Average model fit parameters. Only runs if gen_av is yes
 
-maxw	10
-minw	1
-stepw	1
-
+avstart		-1	## Start time for average. -1 uses start time above
+avend		-1	## End time for average. -1 uses end time above
 
 ## TS Map Parameters:
-TSPix	25
-TSscale	0.25
+TSPix		25
+TSscale		0.25
 
 ## Light Curve Parameters
 
-# window is number of days of data to use (total)
-window 	15
-lcstep	5
-
+window 		15	## Total # of days of data to include in each bin
+lcstep		5	## Time (days) between light curve points
+cleanlc		Yes	## Automatically delete large intermediate files
+up_lim_lc	Yes	## Flag to compute upper limits in light curve
+ts_lim		4	## TS value below which we compute upper limits
 
 ## Performance Details
-nproc	12
+nproc		12	## Number of processes to use (for multiprocessing supported functions)
+
+
 
 ## What analysis should we run?
 
-find_mts	No
-gen_av	Yes
-gen_ts	No
-gen_lc	No
-gen_ul	no
+find_mts	No	## Run search for maximum TS value
+gen_av		Yes	## Generate average likelihood fit
+gen_ts		No	## Generate TS maps
+gen_lc		No	## Build a light curve
