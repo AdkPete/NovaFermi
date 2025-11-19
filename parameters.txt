@@ -19,7 +19,9 @@ N_ebin		37	##Number of energy bins. Should be >= 10 per decade
 ## Average model fit parameters. Only runs if gen_av is yes
 
 avstart		-1	## Start time for average. -1 uses start time above
-avend		-1	## End time for average. -1 uses end time above
+avend		-1	## End time for average. -1 uses end time above'
+up_lim_av	Yes	## Compute upper lim if TS is low
+av_ts_lim	25	## TS limit for average upper limit calculation
 
 ## TS Map Parameters:
 TSPix		25
