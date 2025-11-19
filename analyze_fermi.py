@@ -70,7 +70,7 @@ def setup_events_file(clobber=False):
     infile = '@events.txt'
     return infile , scfile
 
-def get_met(date_time):
+def cal_to_met(date_time):
     '''
     Function to compute Fermi MET
     
@@ -87,6 +87,27 @@ def get_met(date_time):
                         second=0 ,  tzinfo=dtime.timezone.utc)
     MET = date_time - dtref
     return MET.total_seconds()
+
+def tpeak_to_met(time , params):
+    
+    '''
+    Function to compute Fermi MET, given a time relative to nova peak.
+    
+    Parameters
+    __________
+    time : float : Time since peak (negative for before peak) in days
+    params : dict : parameter dict from read_parameters
+    
+    Returns
+    _______
+    MET : float : Fermi MET in seconds
+    
+    '''
+    
+    peak = params["peak"]
+    dt = dtime.timedelta(days = time)
+    caltime = peak + dt
+    return cal_to_met(caltime)
 
 def read_parameters(pfile):
     '''
@@ -132,12 +153,12 @@ def read_parameters(pfile):
             second = int(time.split(":")[2])
             stime = dtime.datetime(year=year,month=month,day=day,hour=hour,
                         minute=minute,second=second,tzinfo=dtime.timezone.utc)
-            MET = get_met(stime)
+            MET = cal_to_met(stime)
             params[key] = MET
         
         elif sl[1].strip().lower() == "now":
             ## Get MET of right now
-            MET = get_met(dtime.datetime.now(tz=dtime.timezone.utc))
+            MET = cal_to_met(dtime.datetime.now(tz=dtime.timezone.utc))
             params[key] = MET
         elif "none" in sl[1].lower() or "N/A" in sl[1].lower():
             continue
@@ -533,7 +554,7 @@ def light_curve_singleproc(params, clobber, log = "results.csv"):
         st = t - window_half_seconds
         et = t + window_half_seconds
         F , F_err , TS = binned_likelihood(params, st, et, clobber, fheader = str(id))
-        if TS < 4:
+        if TS < params["ts_lim"]:
             F = compute_upper_lim(params , str(id))
             F_err = -1
         
@@ -577,7 +598,7 @@ def likelihood_wrapper(run_pars):
     '''
     log_file = run_pars[4] + run_pars[5] + ".csv"
     F , unc , ts = binned_likelihood(*run_pars[0:5])
-    if ts < 4:
+    if ts < params["ts_lim"]:
         F = compute_upper_lim(run_pars[0] , run_pars[4])
         unc = -1
     f = open(log_file , "w")
@@ -902,11 +923,8 @@ def TS_Map(params, input_file):
     _______
     None
     '''
-    #audio_alert
-    #input("Please setup TS map model files:")
+
     setup_tsmap_xml(input_file)
-    roi = params["roi"]
-    npix = int(( np.sqrt(2) * roi / params["pix_sc"] ))
     my_apps.TsMap['statistic'] = "BINNED"
     my_apps.TsMap['cmap'] = f'{params["name"]}_filtered_ccube.fits'
     my_apps.TsMap['scfile'] = params["scfile"]
@@ -955,11 +973,32 @@ if __name__ == "__main__":
     
     print_params(params)
     
-
-    F , F_err , TS = binned_likelihood(params, params["start"], params["end"], False)
-    #compute_upper_lim(params, "")
-    #print ("Test Statistic" , TS)
-
-    #light_curve_singleproc(params , False)
-    light_curve_multiproc(params , False)
+    ##Average Run First
+    if params["gen_av"]:
+        
+        if params["avstart"] != -1:
+            start_time = tpeak_to_met(params["avstart"] , params)
+        else:
+            start_time = params["start"]
+            
+        if params["avend"] != -1:
+            end_time = tpeak_to_met(params["avend"] , params)
+        else:
+            end_time = params["end"]
+            
+        res = binned_likelihood(params, start_time, end_time, False)
+        F , F_err , TS = res
+        if TS < params["av_ts_lim"] and params["up_lim_av"]:
+            compute_upper_lim(params , "")
+        
+    ## Compute TS Maps
+    if params["gen_ts"]:
+        TS_Map(params, "fit_model.xml")
+    
+    ## Build a light curve
+    if params["nproc"] == 1 and params["gen_lc"]:
+        light_curve_singleproc(params , False)
+    elif params["gen_lc"]:
+        light_curve_multiproc(params , False)
+    
     
