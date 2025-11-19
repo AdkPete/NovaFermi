@@ -1,0 +1,49 @@
+
+## Source Specific Parameters:
+
+ra		159.064
+dec		-59.5982
+name		V906_Car
+start		20	##Days since peak
+end		30	## Days since Peak
+peak		2018-03-21 00:00:00
+
+## General Analysis Parameters:
+
+emin		100	#Minimum Energy (MeV)
+emax		300000	#Maximum Energy (MeV)
+pix_sc		0.2	##Pixel size for spatial binning (degrees)
+N_ebin		37	##Number of energy bins. Should be >= 10 per decade
+cal_dir		/Users/Peter/Documents/Research/Novae/Fermi/Diffuse/	## Directory containing calibration files
+
+## Average model fit parameters. Only runs if gen_av is yes
+
+avstart		20	## Start time for average. -1 uses start time above
+avend		25	## End time for average. -1 uses end time above'
+up_lim_av	Yes	## Compute upper lim if TS is low
+av_ts_lim	25	## TS limit for average upper limit calculation
+
+## TS Map Parameters:
+TSPix		25	## Number of pixels per axis (so total = TSPix^2).
+TSscale		0.25	## Pixel size (degrees)
+
+
+## Light Curve Parameters
+
+window 		15	## Total # of days of data to include in each bin
+lcstep		2	## Time (days) between light curve points
+cleanlc		Yes	## Automatically delete large intermediate files
+up_lim_lc	Yes	## Flag to compute upper limits in light curve
+ts_lim		4	## TS value below which we compute upper limits
+
+## Performance Details
+nproc		12	## Number of processes to use (for multiprocessing supported functions)
+
+
+
+## What analysis should we run?
+
+find_mts	No	## Run search for maximum TS value
+gen_av		Yes	## Generate average likelihood fit
+gen_ts		No	## Generate TS maps
+gen_lc		No	## Build a light curve
