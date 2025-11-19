@@ -107,6 +107,8 @@ def read_parameters(pfile):
     params = {}
     for i in f.readlines():
         sl = i.split("\t")
+        while "" in sl:
+            sl.remove("")
         if i[0] == "#" or len(sl) == 1:
             continue
         key = sl[0].strip()
@@ -534,6 +536,7 @@ def light_curve_singleproc(params, clobber, log = "results.csv"):
         if TS < 4:
             F = compute_upper_lim(params , str(id))
             F_err = -1
+        
         Flux.append(F)
         unc.append(F_err)
         ts_vals.append(TS)
@@ -543,14 +546,18 @@ def light_curve_singleproc(params, clobber, log = "results.csv"):
         f.close()
         t += step_seconds
         id += 1
-        
+        if params["cleanlc"]:
+            cleanup(params , str(id))
 
 
 def likelihood_wrapper(run_pars):
     '''
     Simple wrapper function to run the likelihood analysis using 
     only a single argument. Makes it easier for the multi-processing
-    functions to run many likelihood analyses.
+    functions to run many likelihood analyses. Will automatically 
+    compute upper limits if the test statistic from the main fit is
+    less than 4. Set up_lim_lc to no in the parameter file to disable
+    this behavior.
     
     Parameters
     __________
@@ -562,12 +569,14 @@ def likelihood_wrapper(run_pars):
         clobber : boolean : If true, overwrite existing files
         fheader : string : Unique ID added to avoid filename conflicts
         log : filename to save data to
+        cleanup : boolean : If true, delete large intermediate files
+        
     Returns
     ________
     Flux , Flux_Error , TS
     '''
-    log_file = run_pars[-2] + run_pars[-1] + ".csv"
-    F , unc , ts = binned_likelihood(*run_pars[0:len(run_pars)-1])
+    log_file = run_pars[4] + run_pars[5] + ".csv"
+    F , unc , ts = binned_likelihood(*run_pars[0:5])
     if ts < 4:
         F = compute_upper_lim(run_pars[0] , run_pars[4])
         unc = -1
@@ -575,6 +584,8 @@ def likelihood_wrapper(run_pars):
     f.write(str(F) + "," + str(unc) + "," + str(ts))
     f.close()
     tmid = (run_pars[1] + run_pars[2]) / 2.0
+    if run_pars[-1]:
+        cleanup(run_pars[0] , run_pars[4])
     return [F , unc , ts , tmid]
 
 def light_curve_multiproc(params , clobber, log="mp_log"):
@@ -608,7 +619,9 @@ def light_curve_multiproc(params , clobber, log="mp_log"):
         
         st = t - window_half_seconds
         et = t + window_half_seconds
-        param_row = [params, st, et, clobber, '_' + str(id) ,  log]
+        param_row = [params, st, et, clobber, '_' + str(id), log]
+        param_row.append( params["cleanlc"])
+
         param_array.append(param_row)
         t += step_seconds
         id += 1
@@ -803,14 +816,40 @@ def compute_upper_lim(params, fheader):
     gen_ul_xml(f'fit_model{fheader}.xml',"ul.xml",params["name"],mod)
     logL2 , Flux_fhigh , fpar2 = fit_model(params , fheader, True, inmod="ul.xml")
     print (Flux_final , Flux_flow , Flux_fhigh , 2 * (logL - base_L))
-    
-    plt.scatter(lpar , Likes)
-    plt.show()
-    
-    if Flux_final > 1e-7:
-        breakpoint()
+
     return Flux_final
 
+def cleanup(params , fheader):
+    
+    '''
+    Short function to remove files produced during a given likelihood
+    run. Intent is to reduce file volume when generating light curves.
+    
+    WARNING!
+    This function will delete files; do not run unless you are sure 
+    that you want to remove these files. Intended to cleanup all of the
+    sizeable files produced during the run.
+    
+    Parameters
+    __________
+    fheader: string : file id
+    
+    Returns
+    _______
+    '''
+    
+    
+    for i in os.listdir():
+        if params["name"] not in i and fheader not in i:
+            continue
+        if "srcmap" in i: ## Source Maps
+            os.remove(i)
+        elif "BinnedExpMap" in i or "_ltCube" in i:
+            os.remove(i)
+        elif "_filtered" in i:
+            os.remove(i)
+        
+        
 
 if __name__ == "__main__":
     
@@ -825,6 +864,6 @@ if __name__ == "__main__":
     #compute_upper_lim(params, "")
     #print ("Test Statistic" , TS)
 
-    light_curve_singleproc(params , False)
-    #light_curve_multiproc(params , False)
+    #light_curve_singleproc(params , False)
+    light_curve_multiproc(params , False)
     
