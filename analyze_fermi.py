@@ -108,6 +108,32 @@ def tpeak_to_met(time , params):
     caltime = peak + dt
     return cal_to_met(caltime)
 
+def met_to_tpeak(met , params):
+    
+    '''
+    Function to compute the time in days since peak given a Fermi MET
+    
+    Parameters
+    __________
+    met : float : Fermi MET
+    params : dict : parameter dict from read_parameters
+    
+    Returns
+    _______
+    t_peak : float : time since peak in days
+    
+    '''
+    
+    dtref = dtime.datetime(year=2001, month = 1, day=1, hour = 0, minute=0,
+                    second=0 ,  tzinfo=dtime.timezone.utc)
+    peak = params["peak"]
+    
+    met_time = dtref + dtime.timedelta(seconds = met)
+    
+    delta_peak = peak - met_time
+    
+    return delta_peak.total_seconds() / (24 * 60 * 60)
+    
 def read_parameters(pfile):
     '''
     Function to read analysis parameter file
@@ -539,10 +565,19 @@ def light_curve_singleproc(params, clobber, log = "results.csv"):
     None
     '''
     
-
+    if params["lc_start"] == -1:
+        start = params["start"]
+    else:
+        start = tpeak_to_met(params["lc_start"])
+        
+    if params["lc_end"] == -1:
+        end = params["end"]
+    else:
+        end = tpeak_to_met(params["lc_end"])
+        
     window_half_seconds = 12 * 60 * 60 * params["window"]
     step_seconds = 24 * 60 * 60 * params["lcstep"]
-    t = params["start"] + step_seconds / 2.0
+    t = start + step_seconds / 2.0
     
     Flux = []
     unc = []
@@ -554,7 +589,7 @@ def light_curve_singleproc(params, clobber, log = "results.csv"):
     f = open(log , "w")
     f.close()
     id = 0
-    while t + window_half_seconds < params["end"]:
+    while t + window_half_seconds < end:
         st = t - window_half_seconds
         et = t + window_half_seconds
         F , F_err , TS = binned_likelihood(params, st, et, clobber, fheader = str(id))
@@ -565,7 +600,7 @@ def light_curve_singleproc(params, clobber, log = "results.csv"):
         Flux.append(F)
         unc.append(F_err)
         ts_vals.append(TS)
-        time.append( (t - params["start"])/24 * 60 * 60)
+        time.append( t )
         f= open(log , "a")
         f.write(f'{F},{F_err},{TS},{t}\n')
         f.close()
@@ -630,17 +665,27 @@ def light_curve_multiproc(params , clobber, log="mp_log"):
     None
     '''
     
+    if params["lc_start"] == -1:
+        start = params["start"]
+    else:
+        start = tpeak_to_met(params["lc_start"])
+    
+    if params["lc_end"] == -1:
+        end = params["end"]
+    else:
+        end = tpeak_to_met(params["lc_end"])
+    
     ## Start by setting up our parameter array
     param_array = []
     
     window_half_seconds = 12 * 60 * 60 * params["window"]
     step_seconds = 24 * 60 * 60 * params["lcstep"]
-    t = params["start"] + step_seconds / 2.0
+    t = start + step_seconds / 2.0
     
 
     
     id = 0
-    while t + window_half_seconds < params["end"]:
+    while t + window_half_seconds < end:
         
         st = t - window_half_seconds
         et = t + window_half_seconds
@@ -659,28 +704,30 @@ def light_curve_multiproc(params , clobber, log="mp_log"):
     unc = []
     ts = []
     time = []
-    
+    tpeak = []
     for i in results:
         Flux.append(i[0])
         unc.append(i[1])
         ts.append(i[2])
         time.append(i[3])
-    
+        tpeak.append(met_to_tpeak(i[3] , params))
+        
     time = np.array(time)
     Flux = np.array(Flux)
     unc = np.array(unc)
     ts = np.array(ts)
-    time -= time[0]
-    time /= (60 * 60 * 24)
+    tpeak = np.array(tpeak)
+
     det = np.where(ts >=4)
     lim = np.where(ts < 4)
-    plt.scatter(time[det] , Flux[det], color = "blue")
-    plt.errorbar(time[det] , Flux[det] , unc[det] , ls = 'none', color = "blue")
-    plt.scatter(time[lim] , Flux[lim] , color = "orange" , marker = "v")
-    plt.xlabel("Time Since Start (days)")
+    plt.scatter(tpeak[det] , Flux[det], color = "blue")
+    plt.errorbar(tpeak[det] , Flux[det] , unc[det] , ls = 'none', color = "blue")
+    plt.scatter(tpeak[lim] , Flux[lim] , color = "orange" , marker = "v")
+    plt.xlabel("Time since peak (days)")
     plt.ylabel("Flux (ph / s / cm^2")
     plt.savefig("LC.pdf")
     plt.close()
+    
     return results
 
 def gen_ul_xml(input_file, output_file, name , smodel):
