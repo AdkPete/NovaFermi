@@ -509,7 +509,7 @@ def fit_model(params, fheader, get_like, inmod = "No" , opt = 'NewMINUIT'):
     print("ource Convergence Status" , likeobj.getRetCode())
     if get_like:
         
-        return res , like.flux(params["name"] , emin = params["emin"]) , like.model["V3890_Sgr"].funcs["Spectrum"]["Prefactor"]
+        return res , like.flux(params["name"] , emin = params["emin"]) , like.model[params["name"]].funcs["Spectrum"]["Prefactor"]
     like.logLike.writeXml(f'fit_model{fheader}.xml')
     Nova_flux = like.flux(params["name"] , emin = params["emin"])
     Nova_flux_err = like.fluxError(params["name"], emin=params["emin"])
@@ -546,6 +546,33 @@ def binned_likelihood(params, tstart , tend , clobber = False, fheader = ""):
     generate_residuals(params, clobber, fheader)
     
     return Flux, error, TS
+
+def FermiTools_UpperLim(params, fheader):
+
+    '''
+    For comparison, here is the FermiTools Upper Limit mechanism
+    '''
+    
+    from UpperLimits import UpperLimits
+    if not os.path.exists(f'upper_lim_model{fheader}.xml'):
+        mod = setup_pl(params,1.0,-2.1 , free = True)
+        gen_ul_xml(f"fit_model{fheader}.xml", f'upper_lim_model{fheader}.xml',
+                params["name"], mod)
+    obs = BinnedObs(srcMaps=f"{params['name']}{fheader}_srcmap.fits",
+                binnedExpMap=f'{params["name"]}{fheader}_BinnedExpMap.fits',
+                expCube=f'{params["name"]}{fheader}_ltcube.fits',
+                irfs='P8R3_SOURCE_V3')
+    like = BinnedAnalysis(obs,f'upper_lim_model{fheader}.xml')
+    like.fit(verbosity=3)
+    ul = UpperLimits(like)
+    try:
+        ul[params["name"]].compute(emin=params["emin"],emax=params["emax"])
+    except:
+        return -1
+    print (ul[params["name"]].results)
+    flux = float(str(ul[params["name"]].results[0]).split(" ")[0])
+    
+    return flux
 
 def light_curve_singleproc(params, clobber, log = "results.csv"):
     '''
@@ -594,15 +621,19 @@ def light_curve_singleproc(params, clobber, log = "results.csv"):
         et = t + window_half_seconds
         F , F_err , TS = binned_likelihood(params, st, et, clobber, fheader = str(id))
         if TS < params["ts_lim"]:
-            F = compute_upper_lim(params , str(id))
+            F , Flow , Fhigh , DL = compute_upper_lim(params , str(id))
             F_err = -1
-        
+            F2 = FermiTools_UpperLim(params, str(id))
+            
         Flux.append(F)
         unc.append(F_err)
         ts_vals.append(TS)
         time.append( t )
         f= open(log , "a")
         f.write(f'{F},{F_err},{TS},{t}\n')
+        f.close()
+        f= open("FTUL" + log , "a")
+        f.write(f'{F2},{F_err},{TS},{t}\n')
         f.close()
         t += step_seconds
         id += 1
@@ -638,7 +669,7 @@ def likelihood_wrapper(run_pars):
     log_file = run_pars[4] + run_pars[5] + ".csv"
     F , unc , ts = binned_likelihood(*run_pars[0:5])
     if ts < run_pars[0]["ts_lim"]:
-        F = compute_upper_lim(run_pars[0] , run_pars[4])
+        F , Flow , Fhigh , DeltaLogL = compute_upper_lim(run_pars[0] , run_pars[4])
         unc = -1
     f = open(log_file , "w")
     tmid = (run_pars[1] + run_pars[2]) / 2.0
@@ -790,7 +821,7 @@ def setup_pl(params,flux,index , free = False):
         model += f'<parameter free="1" max="1000" min="1e-05" name="Prefactor" scale="1e-07" value="{flux}"/>'
     else:
         model += f'<parameter free="0" max="1000" min="1e-05" name="Prefactor" scale="1e-07" value="{flux}"/>'
-    model += f'<parameter free="0" max="0" min="-5" name="Index1" scale="1" value="{index}"/>'
+    model += f'<parameter free="1" max="-1" min="-3.5" name="Index1" scale="1" value="{index}"/>'
     model += f'<parameter free="0" max="1000" min="50" name="Scale" scale="1" value="200"/>'
     model += f'<parameter free="0" max="30000" min="500" name="Cutoff" scale="1" value="2000"/>'
     model += f'<parameter free="0" max="5" min="0" name="Index2" scale="1" value="1.0"/>'
@@ -834,16 +865,22 @@ def compute_upper_lim(params, fheader):
     ULF : float : upper limit flux
     '''
     
-
+    index = -2.1
     def L(F):
-        mod = setup_pl(params,F,-2.1)
+        '''
+        Function to run the model fitting and return -2 * logL. Note that
+        fit_model returns -1 * logL
+        '''
+        
+        mod = setup_pl(params,F,index)
         gen_ul_xml(f'fit_model{fheader}.xml',"ul.xml",params["name"],mod)
         logL , Flux , fpar = fit_model(params , fheader, True, inmod="ul.xml")
         return 2 * logL
     
+    ## Compute max likelihood model
     Fmax = 100
     base = 1e-5
-    mod = setup_pl(params,1.0,-2.1, free=True)
+    mod = setup_pl(params,1.0,index, free=True)
     gen_ul_xml(f'fit_model{fheader}.xml',"ul.xml",params["name"],mod)
     
 
@@ -856,16 +893,19 @@ def compute_upper_lim(params, fheader):
     
     p_low = np.log10(base_p)
     p_high = np.log10(Fmax)
-    L_low = -1.35
+    L_low = -1.35 ##Delta is 0 for the max likelihood, so this is 2DeltaL - 1.35
     L_high = f(10 ** p_high) - 1.35
 
     lpar = [p_low , p_high]
     Likes = [L_low , L_high]
     if L_high < 0:
-        print ("UL Failure")
-        raise ValueError
+        print ("UL Failure, either no solutions or multiple solutions in bracket")
+        
+        return -1
+    
     from tqdm import tqdm
-    for i in tqdm(range(20)):
+    for i in tqdm(range(15)):
+        
         mid_p = (p_low + p_high) / 2.0
         L_mid = f(10 ** mid_p) - 1.35
         lpar.append(mid_p)
@@ -876,7 +916,7 @@ def compute_upper_lim(params, fheader):
         else:
             p_low = mid_p
             L_low = L_mid
-    
+        
     mod = setup_pl(params,10 ** ((p_low + p_high) / 2.0),-2.1)
     gen_ul_xml(f'fit_model{fheader}.xml',"ul.xml",params["name"],mod)
     logL , Flux_final , fpar = fit_model(params , fheader, True, inmod="ul.xml")
@@ -890,7 +930,7 @@ def compute_upper_lim(params, fheader):
     logL2 , Flux_fhigh , fpar2 = fit_model(params , fheader, True, inmod="ul.xml")
     print (Flux_final , Flux_flow , Flux_fhigh , 2 * (logL - base_L))
 
-    return Flux_final
+    return Flux_final , Flux_flow , Flux_fhigh , 2 * logL - base_L
 
 def cleanup(params , fheader):
     
