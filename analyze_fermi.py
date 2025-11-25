@@ -668,7 +668,7 @@ def likelihood_wrapper(run_pars):
     '''
     log_file = run_pars[4] + run_pars[5] + ".csv"
     F , unc , ts = binned_likelihood(*run_pars[0:5])
-    if ts < run_pars[0]["ts_lim"]:
+    if ts < run_pars[0]["ts_lim"] and run_pars[0]["up_lim_lc"]:
         F , Flow , Fhigh , DeltaLogL = compute_upper_lim(run_pars[0] , run_pars[4])
         unc = -1
     f = open(log_file , "w")
@@ -873,18 +873,18 @@ def compute_upper_lim(params, fheader):
         '''
         
         mod = setup_pl(params,F,index)
-        gen_ul_xml(f'fit_model{fheader}.xml',"ul.xml",params["name"],mod)
-        logL , Flux , fpar = fit_model(params , fheader, True, inmod="ul.xml")
+        gen_ul_xml(f'fit_model{fheader}.xml',f"ul{fheader}.xml",params["name"],mod)
+        logL , Flux , fpar = fit_model(params , fheader, True, inmod=f"ul{fheader}.xml")
         return 2 * logL
     
     ## Compute max likelihood model
     Fmax = 100
     base = 1e-5
     mod = setup_pl(params,1.0,index, free=True)
-    gen_ul_xml(f'fit_model{fheader}.xml',"ul.xml",params["name"],mod)
+    gen_ul_xml(f'fit_model{fheader}.xml',f"ul{fheader}.xml",params["name"],mod)
     
 
-    base_L , base_F , base_p =fit_model(params , fheader, True, inmod="ul.xml")
+    base_L , base_F , base_p =fit_model(params , fheader, True, inmod=f"ul{fheader}.xml")
     base_L *= 2
     
     def f(F):
@@ -918,16 +918,16 @@ def compute_upper_lim(params, fheader):
             L_low = L_mid
         
     mod = setup_pl(params,10 ** ((p_low + p_high) / 2.0),-2.1)
-    gen_ul_xml(f'fit_model{fheader}.xml',"ul.xml",params["name"],mod)
-    logL , Flux_final , fpar = fit_model(params , fheader, True, inmod="ul.xml")
+    gen_ul_xml(f'fit_model{fheader}.xml',f"ul{fheader}.xml",params["name"],mod)
+    logL , Flux_final , fpar = fit_model(params , fheader, True, inmod=f"ul{fheader}.xml")
     
     mod = setup_pl(params,10 ** p_low,-2.1)
-    gen_ul_xml(f'fit_model{fheader}.xml',"ul.xml",params["name"],mod)
-    logL1 , Flux_flow , fpar1 = fit_model(params , fheader, True, inmod="ul.xml")
+    gen_ul_xml(f'fit_model{fheader}.xml',f"ul{fheader}.xml",params["name"],mod)
+    logL1 , Flux_flow , fpar1 = fit_model(params , fheader, True, inmod=f"ul{fheader}.xml")
     
     mod = setup_pl(params,10 ** p_high,-2.1)
-    gen_ul_xml(f'fit_model{fheader}.xml',"ul.xml",params["name"],mod)
-    logL2 , Flux_fhigh , fpar2 = fit_model(params , fheader, True, inmod="ul.xml")
+    gen_ul_xml(f'fit_model{fheader}.xml',f"ul{fheader}.xml",params["name"],mod)
+    logL2 , Flux_fhigh , fpar2 = fit_model(params , fheader, True, inmod=f"ul{fheader}.xml")
     print (Flux_final , Flux_flow , Flux_fhigh , 2 * (logL - base_L))
 
     return Flux_final , Flux_flow , Flux_fhigh , 2 * logL - base_L
