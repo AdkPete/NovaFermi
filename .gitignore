@@ -8,3 +8,7 @@ test_V906_Car/temp*
 test_V906_Car/counts_spectra*
 test_V906_Car/*.reg
 test_V906_Car/*.npy
+mkdocs.sh
+docs/*
+.DS_Store
+__pycache__/
