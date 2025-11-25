@@ -667,7 +667,17 @@ def likelihood_wrapper(run_pars):
     Flux , Flux_Error , TS
     '''
     log_file = run_pars[4] + run_pars[5] + ".csv"
-    F , unc , ts = binned_likelihood(*run_pars[0:5])
+    
+    
+    try:
+        F , unc , ts = binned_likelihood(*run_pars[0:5])
+    except:
+        F , unc , ts = binned_likelihood(*run_pars[0:5])
+        ## I know what you're thinking ... and yes, this does look insane.
+        # However, there is a reason for simply trying again. Sometimes, there
+        # are issues that I currently believe to be a race condition where
+        # multiple processes fight with eachother over some temporary files or
+        # something. Just restarting the process usually solves the issue.
     if ts < run_pars[0]["ts_lim"] and run_pars[0]["up_lim_lc"]:
         F , Flow , Fhigh , DeltaLogL = compute_upper_lim(run_pars[0] , run_pars[4])
         unc = -1
@@ -723,11 +733,13 @@ def light_curve_multiproc(params , clobber, log="mp_log"):
         et = t + window_half_seconds
         param_row = [params, st, et, clobber, '_' + str(id), log]
         param_row.append( params["cleanlc"])
-
-        param_array.append(param_row)
+        log_file = param_row[4] + param_row[5] + ".csv"
+        if not os.path.exists(log_file) or clobber:
+            
+            param_array.append(param_row)
         t += step_seconds
         id += 1
-    
+    breakpoint()
     with mp.Pool(params["nproc"]) as p:
         results = p.map(likelihood_wrapper , param_array)
     np.save(log + ".npy" , results)
