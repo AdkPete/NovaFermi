@@ -597,12 +597,12 @@ def light_curve_singleproc(params, clobber, log = "results.csv"):
     if params["lc_start"] == -1:
         start = params["start"]
     else:
-        start = tpeak_to_met(params["lc_start"])
+        start = tpeak_to_met(params["lc_start"], params)
         
     if params["lc_end"] == -1:
         end = params["end"]
     else:
-        end = tpeak_to_met(params["lc_end"])
+        end = tpeak_to_met(params["lc_end"], params)
         
     window_half_seconds = 12 * 60 * 60 * params["window"]
     step_seconds = 24 * 60 * 60 * params["lcstep"]
@@ -729,12 +729,12 @@ def light_curve_multiproc(params , clobber, log="mp_log"):
     if params["lc_start"] == -1:
         start = params["start"]
     else:
-        start = tpeak_to_met(params["lc_start"])
+        start = tpeak_to_met(params["lc_start"], params)
     
     if params["lc_end"] == -1:
         end = params["end"]
     else:
-        end = tpeak_to_met(params["lc_end"])
+        end = tpeak_to_met(params["lc_end"], params)
     
     ## Start by setting up our parameter array
     param_array = []
