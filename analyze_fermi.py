@@ -550,7 +550,9 @@ def binned_likelihood(params, tstart , tend , clobber = False, fheader = ""):
 def FermiTools_UpperLim(params, fheader):
 
     '''
-    For comparison, here is the FermiTools Upper Limit mechanism
+    For comparison, here is the FermiTools Upper Limit code
+    I've had some reliability issues with this method; seems to be due
+    to optimizers trying to exceed parameter boundaries while fitting.
     '''
     
     from UpperLimits import UpperLimits
@@ -686,13 +688,21 @@ def likelihood_wrapper(run_pars):
         # that another file deletes it, we get a crash. So, if we try again
         # the code will pick up at whatever step we left off on, and the file
         # will most likely exist.
-
+    F2 = -99
     if ts < run_pars[0]["ts_lim"] and run_pars[0]["up_lim_lc"]:
         F , Flow , Fhigh , DeltaLogL = compute_upper_lim(run_pars[0] , run_pars[4])
         unc = -1
+        try:
+            F2 = FermiTools_UpperLim(run_pars[0] , run_pars[4])
+        except Exception as e:
+            f = open("elog.log" , "a")
+            f.write(e + "\n")
+            f.close()
+            F2 = -1
     f = open(log_file , "w")
     tmid = (run_pars[1] + run_pars[2]) / 2.0
     f.write(str(F) + "," + str(unc) + "," + str(ts) + "," + str(tmid))
+    f.write("," + str(F2))
     f.close()
     
     if run_pars[-1]:
