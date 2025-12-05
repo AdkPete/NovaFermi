@@ -173,7 +173,7 @@ def read_parameters(pfile):
             day = int(date.split("-")[2])
             hour = int(time.split(":")[0])
             minute = int(time.split(":")[1])
-            second = float(time.split(":")[2])
+            second = int(float(time.split(":")[2]))
             stime = dtime.datetime(year=year,month=month,day=day,hour=hour,
                         minute=minute,second=second,tzinfo=dtime.timezone.utc)
             MET = cal_to_met(stime)
