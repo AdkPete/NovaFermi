@@ -926,7 +926,7 @@ def compute_upper_lim(params, fheader):
     
     p_low = np.log10(base_p)
     p_high = np.log10(Fmax)
-    L_low = -1.35 * 2 ##Delta is 0 for the max likelihood, so this is 2DeltaL - 1.35
+    L_low = -1.35 ##Delta is 0 for the max likelihood, so this is 2DeltaL - 1.35
     L_high , Flux_high = f(10 ** p_high)
     L_high -= 1.35
     lpar = [p_low , p_high]

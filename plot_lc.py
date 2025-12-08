@@ -37,7 +37,7 @@ def plot_light_curve(params, display=False, compile_csv = None):
     TS = []
     Flux = []
     Unc = []
-    
+    ul2 = []
     f = open(compiled_csv)
     for i in f.readlines():
         if "TS" in i:
@@ -47,12 +47,15 @@ def plot_light_curve(params, display=False, compile_csv = None):
         TS.append(float(sl[2]))
         Flux.append(float(sl[3]))
         Unc.append(float(sl[4]))
+
+        ul2.append(float(sl[5]))
+
         
     Time = np.array(Time)
     TS = np.array(TS)
     Unc = np.array(Unc)
     Flux = np.array(Flux)
-
+    ul2 = np.array(ul2)
 
     plt.scatter(Time , TS)
     plt.xlabel("Time since Peak (Days)")
@@ -67,16 +70,35 @@ def plot_light_curve(params, display=False, compile_csv = None):
 
     plt.scatter(Time[det] , Flux[det], color = "blue")
     plt.errorbar(Time[det] , Flux[det] , Unc[det] , ls = 'none', color = "blue")
-    #plt.scatter(Time[lim] , Flux[lim] , color = "orange" , marker = "v")
+    plt.scatter(Time[lim] , Flux[lim] , color = "orange" , marker = "v")
     plt.yscale('log')
     plt.xlabel("Time since peak (days)")
     plt.ylabel("Flux (ph / s / cm$^{-2}$)")
     if display:
-        
+        plt.savefig("LC.pdf")
         plt.show()
     else:
+        plt.savefig("LC.pdf")
         plt.close()
 
+    lim2 = np.where( ( TS < 4 ) & (ul2 > 0) ) 
+    plt.subplot(2,1,1)
+    plt.scatter(Time[det] , Flux[det], color = "blue")
+    plt.errorbar(Time[det] , Flux[det] , Unc[det] , ls = 'none', color = "blue")
+    plt.scatter(Time[lim] , Flux[lim] , color = "orange" , marker = "v" , alpha = 0.75)
+    plt.scatter(Time[lim2] , ul2[lim2] , color = "green" , marker = "x" , alpha = 0.75)
+    plt.ylabel("Flux (ph / s / cm$^{-2}$)")
+    plt.yscale('log')
+    
+    print (ul2)
+    plt.subplot(2,1,2)
+    plt.scatter(Time[lim2] , Flux[lim2] - ul2[lim2])
+    plt.xlabel("Time since peak (days)")
+    plt.ylabel("Residual")
+
+
+    plt.savefig("ULS.pdf")
+    plt.close()
 def compile_data(params, output=None):
     '''
     Utility function to compile all of the multi-processing logs into 
@@ -103,9 +125,10 @@ def compile_data(params, output=None):
     Time = []
     TS = []
     METs = []
+    ULS = []
     for i in os.listdir(dir):
         fname = os.path.join(dir , i)
-        if ".csv" not in fname or "mp" not in fname:
+        if ".csv" not in fname or "mp" not in fname or str(params["window"]) not in fname or str(params["lcstep"]) not in fname:
             continue
         f = open(fname)
         for line in f.readlines():
@@ -114,6 +137,8 @@ def compile_data(params, output=None):
             Unc.append(float(split_line[1]))
             TS.append(float(split_line[2]))
             MET = float(split_line[3])
+            ul2 = float(split_line[4])
+            ULS.append(ul2)
             METs.append(MET)
             tpeak = af.met_to_tpeak(MET , params)
             Time.append(tpeak)
@@ -124,6 +149,7 @@ def compile_data(params, output=None):
     Flux = np.array(Flux)
     Unc = np.array(Unc)
     Time = np.array(Time)
+    ULS = np.array(ULS)
     
     isort = np.argsort(Time)
     out_file = open(output, "w")
@@ -133,7 +159,7 @@ def compile_data(params, output=None):
     out_file.write(header)
     
     for ind in isort:
-        csv_line = f"{Time[ind]},{METs[ind]},{TS[ind]},{Flux[ind]},{Unc[ind]}"
+        csv_line = f"{Time[ind]},{METs[ind]},{TS[ind]},{Flux[ind]},{Unc[ind]},{ULS[ind]}"
         out_file.write(csv_line + "\n")
     out_file.close()
     
