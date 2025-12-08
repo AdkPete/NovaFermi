@@ -619,7 +619,7 @@ def light_curve_singleproc(params, clobber, log = "results.csv"):
     f.close()
     id = 0
     tpeak_start = met_to_tpeak(start, params)
-    while t + window_half_seconds < end:
+    while t < end:
         fheader= f"_{params['window']}_{params['lcstep']}_{tpeak_start}_st{id}"
         st = t - window_half_seconds
         et = t + window_half_seconds
@@ -696,7 +696,7 @@ def likelihood_wrapper(run_pars):
             F2 = FermiTools_UpperLim(run_pars[0] , run_pars[4])
         except Exception as e:
             f = open("elog.log" , "a")
-            f.write(e + "\n")
+            f.write(str(e) + "\n")
             f.close()
             F2 = -1
     f = open(log_file , "w")
@@ -846,23 +846,23 @@ def setup_pl(params,flux,index , free = False):
     _______
     model : string : string ready to be written into xml file
     '''
-    model = f'<source name="{params["name"]}" type="PointSource">'
-    model += f'<!-- point source units are cm^-2 s^-1 MeV^-1 -->'
-    model += f'<spectrum type="PLSuperExpCutoff">'
+    model = f'<source name="{params["name"]}" type="PointSource">\n'
+    model += f'<!-- point source units are cm^-2 s^-1 MeV^-1 -->\n'
+    model += f'<spectrum type="PLSuperExpCutoff">\n'
     if free:
-        model += f'<parameter free="1" max="1000" min="1e-05" name="Prefactor" scale="1e-07" value="{flux}"/>'
+        model += f'<parameter free="1" max="1000" min="1e-05" name="Prefactor" scale="1e-07" value="{flux}"/>\n'
     else:
-        model += f'<parameter free="0" max="1000" min="1e-05" name="Prefactor" scale="1e-07" value="{flux}"/>'
-    model += f'<parameter free="1" max="-1" min="-3.5" name="Index1" scale="1" value="{index}"/>'
-    model += f'<parameter free="0" max="1000" min="50" name="Scale" scale="1" value="200"/>'
-    model += f'<parameter free="0" max="30000" min="500" name="Cutoff" scale="1" value="2000"/>'
-    model += f'<parameter free="0" max="5" min="0" name="Index2" scale="1" value="1.0"/>'
-    model += f'</spectrum>'
-    model += f'<spatialModel type="SkyDirFunction">'
-    model += f'<parameter free="0" max="360." min="-360." name="RA" scale="1.0" value="{params["ra"]}"/>'
-    model += f'<parameter free="0" max="90." min="-90." name="DEC" scale="1.0" value="{params["dec"]}"/>'
-    model += f'</spatialModel>'
-    model += f'</source>'
+        model += f'<parameter free="0" max="1000" min="1e-05" name="Prefactor" scale="1e-07" value="{flux}"/>\n'
+    model += f'<parameter free="0" max="-1" min="-3.5" name="Index1" scale="1" value="{index}"/>\n'
+    model += f'<parameter free="0" max="1000" min="50" name="Scale" scale="1" value="200"/>\n'
+    model += f'<parameter free="0" max="30000" min="500" name="Cutoff" scale="1" value="2000"/>\n'
+    model += f'<parameter free="0" max="5" min="0" name="Index2" scale="1" value="1.0"/>\n'
+    model += f'</spectrum>\n'
+    model += f'<spatialModel type="SkyDirFunction">\n'
+    model += f'<parameter free="0" max="360." min="-360." name="RA" scale="1.0" value="{params["ra"]}"/>\n'
+    model += f'<parameter free="0" max="90." min="-90." name="DEC" scale="1.0" value="{params["dec"]}"/>\n'
+    model += f'</spatialModel>\n'
+    model += f'</source>\n'
     return model
 
 
@@ -898,6 +898,7 @@ def compute_upper_lim(params, fheader):
     '''
     
     index = -2.1
+    
     def L(F):
         '''
         Function to run the model fitting and return -2 * logL. Note that
@@ -907,7 +908,7 @@ def compute_upper_lim(params, fheader):
         mod = setup_pl(params,F,index)
         gen_ul_xml(f'fit_model{fheader}.xml',f"ul{fheader}.xml",params["name"],mod)
         logL , Flux , fpar = fit_model(params , fheader, True, inmod=f"ul{fheader}.xml")
-        return 2 * logL
+        return 2 * logL , Flux
     
     ## Compute max likelihood model
     Fmax = 100
@@ -920,26 +921,38 @@ def compute_upper_lim(params, fheader):
     base_L *= 2
     
     def f(F):
-        nL = L(F)
-        return nL - base_L
+        nL, nF = L(F)
+        return nL - base_L , nF
     
     p_low = np.log10(base_p)
     p_high = np.log10(Fmax)
-    L_low = -1.35 ##Delta is 0 for the max likelihood, so this is 2DeltaL - 1.35
-    L_high = f(10 ** p_high) - 1.35
-
+    L_low = -1.35 * 2 ##Delta is 0 for the max likelihood, so this is 2DeltaL - 1.35
+    L_high , Flux_high = f(10 ** p_high)
+    L_high -= 1.35
     lpar = [p_low , p_high]
     Likes = [L_low , L_high]
     if L_high < 0:
         print ("UL Failure, either no solutions or multiple solutions in bracket")
         
         return -1
+    fm = []
+    Lm = []
     
-    from tqdm import tqdm
-    for i in tqdm(range(15)):
+    
+    N = 1
+    flux_mid = "N/A"
+    convergence_requirement = 0.01
+    step_numb = 0
+    max_step = 40
+    min_step = 10
+    while step_numb < max_step: ## 20 steps is sufficient to get to a flux sltn.
         
+        print (f"\n\n Starting step number {step_numb + 1}")
+        print (f" Current flux is {flux_mid} \n\n")
         mid_p = (p_low + p_high) / 2.0
-        L_mid = f(10 ** mid_p) - 1.35
+        L_mid , flux_mid = f(10 ** mid_p)
+        L_mid -= 1.35
+        fm.append(flux_mid)
         lpar.append(mid_p)
         Likes.append(L_mid)
         if L_mid * L_low < 0:
@@ -948,8 +961,21 @@ def compute_upper_lim(params, fheader):
         else:
             p_low = mid_p
             L_low = L_mid
+        print (N)
+        N += 1
         
+        Lm.append(L_mid)
+        ## Check for convergence:
+        step_numb += 1
+        if len(fm) < 2:
+            continue
+        if (abs(fm[-1] - fm[-2] ) / fm[-1]) < convergence_requirement:
+            if step_numb >= min_step:
+                print (f"Flux has Converged in {step_numb} steps")
+                break
+    
     mod = setup_pl(params,10 ** ((p_low + p_high) / 2.0),-2.1)
+    
     gen_ul_xml(f'fit_model{fheader}.xml',f"ul{fheader}.xml",params["name"],mod)
     logL , Flux_final , fpar = fit_model(params , fheader, True, inmod=f"ul{fheader}.xml")
     
@@ -1181,7 +1207,10 @@ if __name__ == "__main__":
         res = binned_likelihood(params, start_time, end_time, False)
         F , F_err , TS = res
         if TS < params["av_ts_lim"] and params["up_lim_av"]:
-            compute_upper_lim(params , "")
+            Flux = compute_upper_lim(params , "")[0]
+            Flux2 = FermiTools_UpperLim(params, "")
+            print (f"My Upper Limit Flux = {Flux}")
+            print (f"FermiTools Upper Limit Flux = {Flux2}")
         
         params["input_model"] = "fit_model.xml"
     ## Compute TS Maps
