@@ -18,6 +18,7 @@ import datetime as dtime
 import tabulate
 import multiprocessing as mp
 from astropy.io import fits
+import time
 
 import gt_apps as my_apps
 from GtApp import GtApp
@@ -879,7 +880,7 @@ def compute_upper_lim(params, fheader):
     actual model). Runs one optimizer to fit model with all nova params
     frozen except for the normalization. This provides the max
     likelihood (L0). The goal is then to find the (larger) flux where
-    the likelihood L satisfies 1.35 = -2 * (log(L)-log(L0)), currently
+    the likelihood L satisfies 2.71 = 2 * (log(L)-log(L0)), currently
     done using a simple bisection root finder that will find the root 
     between the normalization parameter at L0 and the max allowed norm 
     (which is unreasonably bright). Assumes that there is one root in 
@@ -902,7 +903,10 @@ def compute_upper_lim(params, fheader):
     def L(F):
         '''
         Function to run the model fitting and return -2 * logL. Note that
-        fit_model returns -1 * logL
+        fit_model returns -1 * logL. We adopt -2 * logL because 2 * logL
+        should asymptotically behave as chi-square, and is the basis for
+        this algorithm. Could also drop the factor of two and adjust the 
+        DeltaL cut appropriately.
         '''
         
         mod = setup_pl(params,F,index)
@@ -921,14 +925,17 @@ def compute_upper_lim(params, fheader):
     base_L *= 2
     
     def f(F):
+        ## Short function to compute likelihoods and fluxes. The intent
+        ## was to pass this into other functions, though that isn't how
+        ## this code ended up
         nL, nF = L(F)
         return nL - base_L , nF
     
     p_low = np.log10(base_p)
     p_high = np.log10(Fmax)
-    L_low = -1.35 ##Delta is 0 for the max likelihood, so this is 2DeltaL - 1.35
+    L_low = -2.71 ##Delta is 0 for the max likelihood, so this is 2*DeltaL - 2.71
     L_high , Flux_high = f(10 ** p_high)
-    L_high -= 1.35
+    L_high -= 2.71
     lpar = [p_low , p_high]
     Likes = [L_low , L_high]
     if L_high < 0:
@@ -941,17 +948,17 @@ def compute_upper_lim(params, fheader):
     
     N = 1
     flux_mid = "N/A"
-    convergence_requirement = 0.01
+    convergence_requirement = 0.002
     step_numb = 0
     max_step = 40
-    min_step = 10
+    min_step = 20
     while step_numb < max_step: ## 20 steps is sufficient to get to a flux sltn.
         
         print (f"\n\n Starting step number {step_numb + 1}")
         print (f" Current flux is {flux_mid} \n\n")
         mid_p = (p_low + p_high) / 2.0
         L_mid , flux_mid = f(10 ** mid_p)
-        L_mid -= 1.35
+        L_mid -= 2.71
         fm.append(flux_mid)
         lpar.append(mid_p)
         Likes.append(L_mid)
@@ -1203,14 +1210,27 @@ if __name__ == "__main__":
             end_time = tpeak_to_met(params["avend"] , params)
         else:
             end_time = params["end"]
-            
+        print ("Beginning Likelihood Calculations")
+        
+        start = time.time()
         res = binned_likelihood(params, start_time, end_time, False)
+        end = time.time()
+        
+        print (f"Likelihood calculation finished; runtime is {(end-start)/60.} m")
+        
         F , F_err , TS = res
         if TS < params["av_ts_lim"] and params["up_lim_av"]:
+            start = time.time()
             Flux = compute_upper_lim(params , "")[0]
-            Flux2 = FermiTools_UpperLim(params, "")
-            print (f"My Upper Limit Flux = {Flux}")
-            print (f"FermiTools Upper Limit Flux = {Flux2}")
+            end = time.time()
+            s2 = time.time()
+            try:
+                Flux2 = FermiTools_UpperLim(params, "")
+            except:
+                Flux2 = -99
+            e2 = time.time()
+            print (f"My Upper Limit Flux = {Flux}; runtime is {(end-start)/60.} m")
+            print (f"FermiTools Upper Limit Flux = {Flux2}; runtime is {(e2-s2)/60.} m")
         
         params["input_model"] = "fit_model.xml"
     ## Compute TS Maps
@@ -1221,6 +1241,10 @@ if __name__ == "__main__":
     if params["nproc"] == 1 and params["gen_lc"]:
         light_curve_singleproc(params , False)
     elif params["gen_lc"]:
+        start = time.time()
         light_curve_multiproc(params , False)
-    
+        end = time.time()
+        
+        print (f"Total light curve runtime was {(end-start)/60} minues")
+        
     
