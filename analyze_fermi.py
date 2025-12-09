@@ -507,7 +507,7 @@ def fit_model(params, fheader, get_like, inmod = "No" , opt = 'NewMINUIT'):
             likeobj=pyLike.NewMinuit(like.logLike)
             like.tol = 0.01
             res = like.fit(verbosity=1,covar=True,optObject=likeobj)
-    print("ource Convergence Status" , likeobj.getRetCode())
+    print("Source Convergence Status" , likeobj.getRetCode())
     if get_like:
         
         return res , like.flux(params["name"] , emin = params["emin"]) , like.model[params["name"]].funcs["Spectrum"]["Prefactor"]
@@ -577,74 +577,6 @@ def FermiTools_UpperLim(params, fheader):
     
     return flux
 
-def light_curve_singleproc(params, clobber, log = "results.csv"):
-    '''
-    Function to build a light curve
-    Uses window width in parameter file, and step size
-    This is the simple version of this function, useful for debugging
-    any issues encountered during the analysis. Runs on a single core.
-    
-    Parameters
-    __________
-    params : dict : parameter dict from read_parameters
-    clobber : boolean : If true, overwrite existing files
-    log : string : file to save lc data
-    
-    Returns
-    ________
-    None
-    '''
-    
-    if params["lc_start"] == -1:
-        start = params["start"]
-    else:
-        start = tpeak_to_met(params["lc_start"], params)
-        
-    if params["lc_end"] == -1:
-        end = params["end"]
-    else:
-        end = tpeak_to_met(params["lc_end"], params)
-        
-    window_half_seconds = 12 * 60 * 60 * params["window"]
-    step_seconds = 24 * 60 * 60 * params["lcstep"]
-    t = start + step_seconds / 2.0
-    
-    Flux = []
-    unc = []
-    ts_vals = []
-    time = []
-    if os.path.exists(log) and not clobber:
-        print ("LC file exists; exiting")
-        return 0
-    f = open(log , "w")
-    f.close()
-    id = 0
-    tpeak_start = met_to_tpeak(start, params)
-    while t < end:
-        fheader= f"_{params['window']}_{params['lcstep']}_{tpeak_start}_st{id}"
-        st = t - window_half_seconds
-        et = t + window_half_seconds
-        F , F_err , TS = binned_likelihood(params, st, et, clobber,
-                                        fheader = fheader)
-        if TS < params["ts_lim"]:
-            F , Flow , Fhigh , DL = compute_upper_lim(params , fheader)
-            F_err = -1
-            F2 = FermiTools_UpperLim(params, fheader)
-            
-        Flux.append(F)
-        unc.append(F_err)
-        ts_vals.append(TS)
-        time.append( t )
-        f= open(log , "a")
-        f.write(f'{F},{F_err},{TS},{t}\n')
-        f.close()
-        f= open("FTUL" + log , "a")
-        f.write(f'{F2},{F_err},{TS},{t}\n')
-        f.close()
-        t += step_seconds
-        id += 1
-        if params["cleanlc"]:
-            cleanup(params , fheader)
 
 
 def likelihood_wrapper(run_pars):
@@ -674,7 +606,6 @@ def likelihood_wrapper(run_pars):
     '''
     log_file = run_pars[4] + run_pars[5] + ".csv"
     
-    
     try:
         F , unc , ts = binned_likelihood(*run_pars[0:5])
     except:
@@ -694,11 +625,9 @@ def likelihood_wrapper(run_pars):
         F , Flow , Fhigh , DeltaLogL = compute_upper_lim(run_pars[0] , run_pars[4])
         unc = -1
         try:
+            
             F2 = FermiTools_UpperLim(run_pars[0] , run_pars[4])
-        except Exception as e:
-            f = open("elog.log" , "a")
-            f.write(str(e) + "\n")
-            f.close()
+        except:
             F2 = -1
     f = open(log_file , "w")
     tmid = (run_pars[1] + run_pars[2]) / 2.0
@@ -709,6 +638,96 @@ def likelihood_wrapper(run_pars):
     if run_pars[-1]:
         cleanup(run_pars[0] , run_pars[4])
     return [F , unc , ts , tmid]
+
+def light_curve_singleproc(params, clobber, log = "mp_log"):
+    '''
+    Function to build a light curve
+    Uses window width in parameter file, and step size
+    This is the multiprocessing version of this function
+    This version in particular is only called if nproc = 1
+    Mainly intended for debugging, but the behaviour is identical
+    to the multiproc version (except single-processed).
+    Parameters
+    __________
+    params : dict : parameter dict from read_parameters
+    clobber : boolean : If true, overwrite existing files
+    log : string : base file name to load data
+    
+    Returns
+    ________
+    None
+    '''
+    
+    if params["lc_start"] == -1:
+        start = params["start"]
+    else:
+        start = tpeak_to_met(params["lc_start"], params)
+    
+    if params["lc_end"] == -1:
+        end = params["end"]
+    else:
+        end = tpeak_to_met(params["lc_end"], params)
+    
+    ## Start by setting up our parameter array
+    param_array = []
+    
+    window_half_seconds = 12 * 60 * 60 * params["window"]
+    step_seconds = 24 * 60 * 60 * params["lcstep"]
+    t = start + step_seconds / 2.0
+    tpeak_start = met_to_tpeak(start, params)
+
+    
+    id = 0
+    while t + window_half_seconds < end:
+        
+        fheader = f"_{params['window']}_{params['lcstep']}_{tpeak_start}_st{id}"
+        st = t - window_half_seconds
+        et = t + window_half_seconds
+        param_row = [params, st, et, clobber, fheader, log]
+        param_row.append( params["cleanlc"])
+        log_file = param_row[4] + param_row[5] + ".csv"
+        if not os.path.exists(log_file) or clobber:
+            
+            param_array.append(param_row)
+        t += step_seconds
+        id += 1
+    
+    results = []
+    for parameter_row in param_array:
+        result = likelihood_wrapper(parameter_row)
+        results.append(result)
+        #results = p.map(likelihood_wrapper , param_array)
+    np.save(log + ".npy" , results)
+    
+    Flux = []
+    unc = []
+    ts = []
+    time = []
+    tpeak = []
+    for i in results:
+        Flux.append(i[0])
+        unc.append(i[1])
+        ts.append(i[2])
+        time.append(i[3])
+        tpeak.append(met_to_tpeak(i[3] , params))
+        
+    time = np.array(time)
+    Flux = np.array(Flux)
+    unc = np.array(unc)
+    ts = np.array(ts)
+    tpeak = np.array(tpeak)
+
+    det = np.where(ts >=4)
+    lim = np.where(ts < 4)
+    plt.scatter(tpeak[det] , Flux[det], color = "blue")
+    plt.errorbar(tpeak[det] , Flux[det] , unc[det] , ls = 'none', color = "blue")
+    plt.scatter(tpeak[lim] , Flux[lim] , color = "orange" , marker = "v")
+    plt.xlabel("Time since peak (days)")
+    plt.ylabel("Flux (ph / s / cm$^{-2}$)")
+    plt.savefig("LC.pdf")
+    plt.close()
+    
+    return results
 
 def light_curve_multiproc(params , clobber, log="mp_log"):
     '''
@@ -761,6 +780,11 @@ def light_curve_multiproc(params , clobber, log="mp_log"):
         t += step_seconds
         id += 1
     
+    #import psutil
+    #p = psutil.Process(os.getpid())
+    #print("RSS:", p.memory_info().rss/1024**2, "MB")
+    #print("VMS:", p.memory_info().vms/1024**2, "MB")
+    #mp.set_start_method("spawn")
     with mp.Pool(params["nproc"]) as p:
         results = p.map(likelihood_wrapper , param_array)
     np.save(log + ".npy" , results)
