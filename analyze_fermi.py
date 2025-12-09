@@ -19,9 +19,11 @@ import tabulate
 import multiprocessing as mp
 from astropy.io import fits
 import time
+import gc
 
 import gt_apps as my_apps
 from GtApp import GtApp
+from UpperLimits import UpperLimits
 
 import pyLikelihood
 from BinnedAnalysis import *
@@ -517,6 +519,14 @@ def fit_model(params, fheader, get_like, inmod = "No" , opt = 'NewMINUIT'):
     
     TS = like.Ts(f'{params["name"]}')
     
+    # break cycles & force collection
+    like = None
+    ul = None
+    obs = None
+    mod = None
+    likeobj = None
+    gc.collect()
+    
     return Nova_flux , Nova_flux_err , TS
 
 
@@ -556,7 +566,7 @@ def FermiTools_UpperLim(params, fheader):
     to optimizers trying to exceed parameter boundaries while fitting.
     '''
     
-    from UpperLimits import UpperLimits
+    
     if not os.path.exists(f'upper_lim_model{fheader}.xml'):
         mod = setup_pl(params,1.0,-2.1 , free = True)
         gen_ul_xml(f"fit_model{fheader}.xml", f'upper_lim_model{fheader}.xml',
@@ -604,6 +614,8 @@ def likelihood_wrapper(run_pars):
     ________
     Flux , Flux_Error , TS
     '''
+
+    
     log_file = run_pars[4] + run_pars[5] + ".csv"
     
     try:
@@ -622,6 +634,7 @@ def likelihood_wrapper(run_pars):
         # will most likely exist.
     F2 = -99
     if ts < run_pars[0]["ts_lim"] and run_pars[0]["up_lim_lc"]:
+        
         F , Flow , Fhigh , DeltaLogL = compute_upper_lim(run_pars[0] , run_pars[4])
         unc = -1
         try:
@@ -779,14 +792,16 @@ def light_curve_multiproc(params , clobber, log="mp_log"):
             param_array.append(param_row)
         t += step_seconds
         id += 1
-    
-    #import psutil
-    #p = psutil.Process(os.getpid())
-    #print("RSS:", p.memory_info().rss/1024**2, "MB")
-    #print("VMS:", p.memory_info().vms/1024**2, "MB")
-    #mp.set_start_method("spawn")
-    with mp.Pool(params["nproc"]) as p:
-        results = p.map(likelihood_wrapper , param_array)
+
+    ## maxtasksperchild = 1 is designed to resolve a memory usage problem
+    ## Probably mildly inneficient, but better than consuming many GB of
+    ## RAM per process.
+
+    results = []
+    with mp.Pool(processes=params["nproc"], maxtasksperchild=1) as p:
+        imres = p.imap(likelihood_wrapper , param_array, chunksize=1)
+        for res in imres:
+            results.append(res)
     np.save(log + ".npy" , results)
     
     Flux = []
@@ -969,13 +984,12 @@ def compute_upper_lim(params, fheader):
     fm = []
     Lm = []
     
-    
     N = 1
     flux_mid = "N/A"
     convergence_requirement = 0.002
     step_numb = 0
     max_step = 40
-    min_step = 20
+    min_step = 12
     while step_numb < max_step: ## 20 steps is sufficient to get to a flux sltn.
         
         print (f"\n\n Starting step number {step_numb + 1}")
@@ -1004,7 +1018,6 @@ def compute_upper_lim(params, fheader):
             if step_numb >= min_step:
                 print (f"Flux has Converged in {step_numb} steps")
                 break
-    
     mod = setup_pl(params,10 ** ((p_low + p_high) / 2.0),-2.1)
     
     gen_ul_xml(f'fit_model{fheader}.xml',f"ul{fheader}.xml",params["name"],mod)
