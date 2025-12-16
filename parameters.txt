@@ -50,3 +50,9 @@ find_mts	No	## Run search for maximum TS value
 gen_av		Yes	## Generate average likelihood fit
 gen_ts		Yes	## Generate TS maps
 gen_lc		Yes	## Build a light curve
+
+
+## Debugging and Algorithm Parameters
+
+runlog		No	## Saves a log file keeping track of progress; useful for debugging
+clobber		No	## If Yes, will overwrite some existing files

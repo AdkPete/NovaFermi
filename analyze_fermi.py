@@ -20,6 +20,9 @@ import multiprocessing as mp
 from astropy.io import fits
 import time
 import gc
+import scipy.optimize as opt
+import gen_alg as ga
+import contextlib
 
 import gt_apps as my_apps
 from GtApp import GtApp
@@ -461,7 +464,7 @@ def bin_data(params, clobber, fheader):
     if not os.path.exists(f'{params["name"]}{fheader}_filtered_ccube.fits') or clobber:
         my_apps.evtbin.run()
 
-def fit_model(params, fheader, get_like, inmod = "No" , opt = 'NewMINUIT'):
+def fit_model(params, fheader, get_like, inmod = "No" , opt = 'NewMINUIT', silent=False):
     '''
     Function to run the model fitting steps
     This version is the recommended fitting process
@@ -474,6 +477,7 @@ def fit_model(params, fheader, get_like, inmod = "No" , opt = 'NewMINUIT'):
     params : dict : parameter dict from read_parameters
     fheader : string : Unique ID added to file names to avoid name conflicts
     get_like : boolean : If true, return logL
+    silent : boolean : If true, supress first optimizer output.
     Returns
     ________
     None
@@ -489,6 +493,8 @@ def fit_model(params, fheader, get_like, inmod = "No" , opt = 'NewMINUIT'):
     drmnfb_comm += f'srcmdl={inmod} irfs=CALDB'
     drmnfb_comm += f' optimizer=DRMNFB sfile=temp{fheader}.xml '
     
+    if silent:
+        drmnfb_comm += ">/dev/null "
     subprocess.run(drmnfb_comm,shell=True)
     
     obs = BinnedObs(srcMaps=src_name,
@@ -523,7 +529,7 @@ def fit_model(params, fheader, get_like, inmod = "No" , opt = 'NewMINUIT'):
     return Nova_flux , Nova_flux_err , TS
 
 
-def binned_likelihood(params, tstart , tend , clobber = False, fheader = ""):
+def binned_likelihood(params, tstart , tend , clobber = False, fheader = "", silent=False):
     '''
     Function to run the full binned likelihood analysis pipeline
     Will run this once, and produces a TS value, and a flux
@@ -534,11 +540,13 @@ def binned_likelihood(params, tstart , tend , clobber = False, fheader = ""):
     tstart : float : time (MET) for data end
     clobber : boolean : If true, overwrite existing files
     fheader : string : Unique ID added to file names to avoid name conflicts
-    
+    silent : boolean : Flag to suppress terminal output. Only supresses the
+                    output from one fit model call, does not handle python outputs
     Returns
     ________
     None
     '''
+    
     
     runlogname = "runlog" + fheader + ".log"
     
@@ -548,7 +556,8 @@ def binned_likelihood(params, tstart , tend , clobber = False, fheader = ""):
         rf.close()
         
     data_selection(params, tstart, tend, clobber , fheader)
-
+    
+    
     if params["runlog"]:
         rf = open(runlogname , "a")
         rf.write("Beginning Data Binning\n")
@@ -560,7 +569,8 @@ def binned_likelihood(params, tstart , tend , clobber = False, fheader = ""):
         rf = open(runlogname , "a")
         rf.write("Building Exposure Maps\n")
         rf.close()
-        
+    
+    
     lt_exp_maps(params , clobber , fheader)
     
     if params["runlog"]:
@@ -582,7 +592,7 @@ def binned_likelihood(params, tstart , tend , clobber = False, fheader = ""):
         rf.write("Fitting Source Model\n")
         rf.close()
         
-    Flux , error , TS = fit_model(params , fheader, False)
+    Flux , error , TS = fit_model(params , fheader, False, silent=silent)
     
     if params["runlog"]:
         rf = open(runlogname , "a")
@@ -596,8 +606,59 @@ def binned_likelihood(params, tstart , tend , clobber = False, fheader = ""):
         rf.write("Likelihood Calculation Complete\n")
         rf.write("-" * 33 + "\n")
         rf.close()
-        
+
     return Flux, error, TS
+
+
+
+def opt_func(x):
+    '''
+    Brief function that is ready to be minimized by scipy
+    and other optimizers. Takes in an array of length 2, and returns
+    a function that will evaluate TS value of a given window. The input
+    array should contain, in order, the start time for data selection 
+    (in days relative to peak) and the length of the data window in days.
+    
+    Parameters
+    __________
+    params : dict : parameter dict from read_parameters
+    
+    Returns:
+    f(x) : function : function that evaluates TS as a function of window parameters.
+                        Note: Returns -1 * TS to work with minimization algorithms.
+    '''
+    logfile = "all_fits.csv"
+    fheader =  f"_temp_{round(x[0],3)}_{round(x[1],3)}_"
+    
+    with contextlib.redirect_stdout(None):
+        params = read_parameters(sys.argv[1])
+        tstart = tpeak_to_met(x[0] , params)
+        tend = tpeak_to_met(x[0] + x[1] , params)
+        try:
+            Flux , error , TS = binned_likelihood(params, tstart, tend, False,
+                                    fheader, silent = True)
+        except:
+            try:
+                Flux , error , TS = binned_likelihood(params, tstart, tend, False,
+                                   fheader, silent = True)
+            except Exception as e:
+                ## No luck, we return inf. and will skip this iteration.
+                ## Benefit of a Monte-Carlo optimizer, we can just try a new solution.
+                ## However, we will produce an error log to track it down later.
+                err_log = f"elog{fheader}.txt"
+                el = open(err_log , "w")
+                el.write(f"Binned Likelihood crashed on data between {x[0]} and {x[0] + x[1]}")
+                el.write("\n\n\n")
+                el.write(str(e))
+                el.close()
+                return np.inf
+    cleanup(params , fheader = fheader, all_files = True)
+    lf = open(logfile , "a")
+    lf.write(str(x[0]) + "," + str(x[1]) + "," + str(TS) + "\n")
+    lf.close()
+    print (f"Final Results are: TS = {TS} with data from {x[0]} to {x[0] + x[1]}")
+    return -1 * TS
+
 
 def FermiTools_UpperLim(params, fheader):
 
@@ -1125,7 +1186,7 @@ def compute_upper_lim(params, fheader):
 
     return Flux_final , Flux_flow , Flux_fhigh , 2 * logL - base_L
 
-def cleanup(params , fheader):
+def cleanup(params , fheader, all_files = False):
     
     '''
     Short function to remove files produced during a given likelihood
@@ -1140,6 +1201,7 @@ def cleanup(params , fheader):
     __________
     params : dict : parameter dict from read_parameters
     fheader: string : file id
+    all_fits : boolean : if true, deletes every file except the final results.
     
     Returns
     _______
@@ -1147,13 +1209,19 @@ def cleanup(params , fheader):
     
     
     for i in os.listdir():
+        
         if params["name"] not in i or fheader not in i:
             continue
+        
         if "srcmap" in i: ## Source Maps
             os.remove(i)
         elif "BinnedExpMap" in i or "_ltCube" in i:
             os.remove(i)
         elif "_filtered" in i:
+            os.remove(i)
+        elif ".fits" in i and all_files:
+            os.remove(i)
+        elif ".xml" in i and all_files:
             os.remove(i)
         
 def setup_tsmap_xml(params, input_file):
@@ -1318,6 +1386,43 @@ def generate_residuals(params, clobber, fheader):
     plt.savefig(f"Residual_{fheader}.pdf")
     plt.close()
     
+def find_max_TS(params):
+    '''
+    Function to determine the ideal window to get the maximum test
+    statistic value. Intended to search for evidence of a significant
+    detection.
+    
+    Parameters
+    ___________
+    params : dict : parameter dict from read_parameters
+    
+    Returns
+    _______
+    None
+    '''
+    
+
+    logfile = "all_fits.csv"
+    f = open(logfile , "w")
+    f.write("#tstart,windowsize,TS\n")
+    f.close()
+    x0 = [0, 15]
+    
+    boundaries = [ [-5 , 10 ] , [ 0.1 , 20 ]  ] 
+    '''
+    result = opt.minimize(min_ts , x0)
+    optf = open("optimize_res.txt" , "w")
+    optf.write(str(result.x[0]) + "," + str(result.x[1]) + "," + str(result.fun))
+    optf.write("," + str(result.success))
+    optf.close()
+    print (result)
+    print (result.x)
+    '''
+    Bx , Bf , neval = ga.genetic_algorithm(opt_func , boundaries, popsize = 30,
+                            Niter = 10, nproc = params["nproc"], mutation_rate=0.05)
+    print (Bx , Bf)
+    return Bx , Bf
+
 if __name__ == "__main__":
     
     paramfile = sys.argv[1]
@@ -1325,7 +1430,10 @@ if __name__ == "__main__":
     params = read_parameters(paramfile)
     
     print_params(params)
-    
+    ## Find Max TS
+    if params["find_mts"]:
+        mx = find_max_TS(params)
+
     ##Average Run First
     if params["gen_av"]:
         
@@ -1365,6 +1473,7 @@ if __name__ == "__main__":
     if params["gen_ts"]:
         TS_Map(params, "fit_model.xml", False)
     
+        
     ## Build a light curve
     if params["nproc"] == 1 and params["gen_lc"]:
         light_curve_singleproc(params , params["clobber"])
