@@ -12,3 +12,6 @@ mkdocs.sh
 docs/*
 .DS_Store
 __pycache__/
+temp*
+gll*.fit
+html_docs/

@@ -1,0 +1,624 @@
+<!DOCTYPE html>
+
+<html lang="en" data-content_root="./">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" /><meta name="viewport" content="width=device-width, initial-scale=1" />
+
+    <title>Welcome to NovaFermi’s documentation! &#8212; NovaFermi 0.0 documentation</title>
+    <link rel="stylesheet" type="text/css" href="_static/pygments.css?v=5ecbeea2" />
+    <link rel="stylesheet" type="text/css" href="_static/basic.css?v=b08954a9" />
+    <link rel="stylesheet" type="text/css" href="_static/alabaster.css?v=27fed22d" />
+    <script src="_static/documentation_options.js?v=837179f8"></script>
+    <script src="_static/doctools.js?v=9bcbadda"></script>
+    <script src="_static/sphinx_highlight.js?v=dc90522c"></script>
+    <link rel="index" title="Index" href="genindex.html" />
+    <link rel="search" title="Search" href="search.html" />
+   
+  <link rel="stylesheet" href="_static/custom.css" type="text/css" />
+  
+
+  
+  
+
+  </head><body>
+  
+
+    <div class="document">
+      <div class="documentwrapper">
+        <div class="bodywrapper">
+          
+
+          <div class="body" role="main">
+            
+  <section id="welcome-to-novafermi-s-documentation">
+<h1>Welcome to NovaFermi’s documentation!<a class="headerlink" href="#welcome-to-novafermi-s-documentation" title="Link to this heading">¶</a></h1>
+<div class="toctree-wrapper compound">
+</div>
+</section>
+<section id="module-analyze_fermi">
+<span id="analyze-fermi-module"></span><h1>analyze_fermi Module<a class="headerlink" href="#module-analyze_fermi" title="Link to this heading">¶</a></h1>
+<p>Written by Peter Craig (<a class="reference external" href="mailto:craigpe1&#37;&#52;&#48;msu&#46;edu">craigpe1<span>&#64;</span>msu<span>&#46;</span>edu</a>)
+Last updated 11/15/25</p>
+<p>Runs Fermi data analysis for novae
+Includes functions to:
+1. Run a binned likelihood analysis to check TS value for a nova
+2. Generate a light curve
+3. Search for maximum TS value</p>
+<dl class="py function">
+<dt class="sig sig-object py" id="analyze_fermi.FermiTools_UpperLim">
+<span class="sig-prename descclassname"><span class="pre">analyze_fermi.</span></span><span class="sig-name descname"><span class="pre">FermiTools_UpperLim</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">params</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">fheader</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#analyze_fermi.FermiTools_UpperLim" title="Link to this definition">¶</a></dt>
+<dd><p>For comparison, here is the FermiTools Upper Limit mechanism</p>
+</dd></dl>
+
+<dl class="py function">
+<dt class="sig sig-object py" id="analyze_fermi.TS_Map">
+<span class="sig-prename descclassname"><span class="pre">analyze_fermi.</span></span><span class="sig-name descname"><span class="pre">TS_Map</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">params</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">input_file</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">clobber</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#analyze_fermi.TS_Map" title="Link to this definition">¶</a></dt>
+<dd><p>Function to generate TS Maps.
+Will build two files, one with the full source model list, called
+name_TSmap_resid.fits, and one with the nova model removed, called
+name_TSmap_background_resid.fits.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><ul class="simple">
+<li><p><strong>params</strong> (<em>dict : parameter dict from read_parameters</em>)</p></li>
+<li><p><strong>input_file</strong> (<em>string : name</em><em> of </em><em>xml input file</em>)</p></li>
+</ul>
+</dd>
+<dt class="field-even">Return type<span class="colon">:</span></dt>
+<dd class="field-even"><p>None</p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py function">
+<dt class="sig sig-object py" id="analyze_fermi.bin_data">
+<span class="sig-prename descclassname"><span class="pre">analyze_fermi.</span></span><span class="sig-name descname"><span class="pre">bin_data</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">params</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">clobber</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">fheader</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#analyze_fermi.bin_data" title="Link to this definition">¶</a></dt>
+<dd><p>Function to generate counts maps / cubes</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><ul class="simple">
+<li><p><strong>params</strong> (<em>dict : parameter dict from read_parameters</em>)</p></li>
+<li><p><strong>clobber</strong> (<em>boolean : If true</em><em>, </em><em>overwrite existing files</em>)</p></li>
+<li><p><strong>fheader</strong> (<em>string : Unique ID added to file names to avoid name conflicts</em>)</p></li>
+</ul>
+</dd>
+<dt class="field-even">Return type<span class="colon">:</span></dt>
+<dd class="field-even"><p>None</p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py function">
+<dt class="sig sig-object py" id="analyze_fermi.binned_likelihood">
+<span class="sig-prename descclassname"><span class="pre">analyze_fermi.</span></span><span class="sig-name descname"><span class="pre">binned_likelihood</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">params</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">tstart</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">tend</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">clobber</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">False</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">fheader</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">''</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#analyze_fermi.binned_likelihood" title="Link to this definition">¶</a></dt>
+<dd><p>Function to run the full binned likelihood analysis pipeline
+Will run this once, and produces a TS value, and a flux
+:param params:
+:type params: dict : parameter dict from read_parameters
+:param tstart:
+:type tstart: float : time (MET) for data start
+:param tstart:
+:type tstart: float : time (MET) for data end
+:param clobber:
+:type clobber: boolean : If true, overwrite existing files
+:param fheader:
+:type fheader: string : Unique ID added to file names to avoid name conflicts</p>
+<dl class="field-list simple">
+<dt class="field-odd">Return type<span class="colon">:</span></dt>
+<dd class="field-odd"><p>None</p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py function">
+<dt class="sig sig-object py" id="analyze_fermi.cal_to_met">
+<span class="sig-prename descclassname"><span class="pre">analyze_fermi.</span></span><span class="sig-name descname"><span class="pre">cal_to_met</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">date_time</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#analyze_fermi.cal_to_met" title="Link to this definition">¶</a></dt>
+<dd><p>Function to compute Fermi MET</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><p><strong>date_time</strong> (<em>datetime object : Should contain time you'd like to</em>) – convert to MET</p>
+</dd>
+<dt class="field-even">Returns<span class="colon">:</span></dt>
+<dd class="field-even"><p><strong>MET</strong></p>
+</dd>
+<dt class="field-odd">Return type<span class="colon">:</span></dt>
+<dd class="field-odd"><p>float : Fermi MET in seconds</p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py function">
+<dt class="sig sig-object py" id="analyze_fermi.cleanup">
+<span class="sig-prename descclassname"><span class="pre">analyze_fermi.</span></span><span class="sig-name descname"><span class="pre">cleanup</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">params</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">fheader</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#analyze_fermi.cleanup" title="Link to this definition">¶</a></dt>
+<dd><p>Short function to remove files produced during a given likelihood
+run. Intent is to reduce file volume when generating light curves.</p>
+<p>WARNING!
+This function will delete files; do not run unless you are sure
+that you want to remove these files. Intended to cleanup all of the
+sizeable files produced during the run.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><ul class="simple">
+<li><p><strong>params</strong> (<em>dict : parameter dict from read_parameters</em>)</p></li>
+<li><p><strong>fheader</strong> (<em>string : file id</em>)</p></li>
+</ul>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py function">
+<dt class="sig sig-object py" id="analyze_fermi.compute_upper_lim">
+<span class="sig-prename descclassname"><span class="pre">analyze_fermi.</span></span><span class="sig-name descname"><span class="pre">compute_upper_lim</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">params</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">fheader</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#analyze_fermi.compute_upper_lim" title="Link to this definition">¶</a></dt>
+<dd><p>Function to compute the upper limit on the flux for a source
+This is an implementation of the profile-likelihood method, makes
+an assumption about what is reasonable for nova fluxes.
+Probably a bit inefficient, but the algorithm is straightforward
+Uses a profile likelihood method to find upper limit at given CL
+Algorithm description: Begins by freezing spectral parameters to
+some standard nova selections (see setup_pl function that sets the
+actual model). Runs one optimizer to fit model with all nova params
+frozen except for the normalization. This provides the max
+likelihood (L0). The goal is then to find the (larger) flux where
+the likelihood L satisfies 1.35 = -2 * (log(L)-log(L0)), currently
+done using a simple bisection root finder that will find the root
+between the normalization parameter at L0 and the max allowed norm
+(which is unreasonably bright). Assumes that there is one root in
+the likelihood criterion. Different confidence levels correspond to
+different likelihood differences (not currently supported, we
+assume a 95% CL).</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><ul class="simple">
+<li><p><strong>params</strong> (<em>dict : parameter dict from read_parameters</em>)</p></li>
+<li><p><strong>model</strong> (<em>string : name</em><em> of </em><em>input xml file</em>)</p></li>
+</ul>
+</dd>
+<dt class="field-even">Returns<span class="colon">:</span></dt>
+<dd class="field-even"><p><strong>ULF</strong></p>
+</dd>
+<dt class="field-odd">Return type<span class="colon">:</span></dt>
+<dd class="field-odd"><p>float : upper limit flux</p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py function">
+<dt class="sig sig-object py" id="analyze_fermi.data_selection">
+<span class="sig-prename descclassname"><span class="pre">analyze_fermi.</span></span><span class="sig-name descname"><span class="pre">data_selection</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">params</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">tstart</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">tend</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">clobber</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">fheader</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#analyze_fermi.data_selection" title="Link to this definition">¶</a></dt>
+<dd><p>Function to run the data selection
+Runs the gtselect and mktime FermiTools tasks to run the data selection
+Will produce the following FITS files:
+source_filtered.fits (gtselect)
+source_filtered_gti.fits (mktime)</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><ul class="simple">
+<li><p><strong>params</strong> (<em>dict : parameter dict from read_parameters</em>)</p></li>
+<li><p><strong>tstart</strong> (<em>float : time</em><em> (</em><em>MET</em><em>) </em><em>for data end</em>)</p></li>
+<li><p><strong>tstart</strong></p></li>
+<li><p><strong>clobber</strong> (<em>boolean : If true</em><em>, </em><em>overwrite existing files</em>)</p></li>
+<li><p><strong>fheader</strong> (<em>string : Unique ID added to file names to avoid name conflicts</em>)</p></li>
+</ul>
+</dd>
+<dt class="field-even">Return type<span class="colon">:</span></dt>
+<dd class="field-even"><p>None</p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py function">
+<dt class="sig sig-object py" id="analyze_fermi.fit_model">
+<span class="sig-prename descclassname"><span class="pre">analyze_fermi.</span></span><span class="sig-name descname"><span class="pre">fit_model</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">params</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">fheader</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">get_like</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">inmod</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">'No'</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">opt</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">'NewMINUIT'</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#analyze_fermi.fit_model" title="Link to this definition">¶</a></dt>
+<dd><p>Function to run the model fitting steps
+This version is the recommended fitting process
+First runs a quick analysis with DRMNFB to get close to the approx sltn.
+Follows this with a NewMINUIT optimization run to finalize the model.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><ul class="simple">
+<li><p><strong>params</strong> (<em>dict : parameter dict from read_parameters</em>)</p></li>
+<li><p><strong>fheader</strong> (<em>string : Unique ID added to file names to avoid name conflicts</em>)</p></li>
+<li><p><strong>get_like</strong> (<em>boolean : If true</em><em>, </em><em>return logL</em>)</p></li>
+</ul>
+</dd>
+<dt class="field-even">Return type<span class="colon">:</span></dt>
+<dd class="field-even"><p>None</p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py function">
+<dt class="sig sig-object py" id="analyze_fermi.gen_model">
+<span class="sig-prename descclassname"><span class="pre">analyze_fermi.</span></span><span class="sig-name descname"><span class="pre">gen_model</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">params</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">clobber</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">fheader</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#analyze_fermi.gen_model" title="Link to this definition">¶</a></dt>
+<dd><p>Function to create an input model file</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><ul class="simple">
+<li><p><strong>params</strong> (<em>dict : parameter dict from read_parameters</em>)</p></li>
+<li><p><strong>clobber</strong> (<em>boolean : If true</em><em>, </em><em>overwrite existing files</em>)</p></li>
+</ul>
+</dd>
+<dt class="field-even">Return type<span class="colon">:</span></dt>
+<dd class="field-even"><p>None</p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py function">
+<dt class="sig sig-object py" id="analyze_fermi.gen_srcmap">
+<span class="sig-prename descclassname"><span class="pre">analyze_fermi.</span></span><span class="sig-name descname"><span class="pre">gen_srcmap</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">params</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">clobber</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">fheader</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#analyze_fermi.gen_srcmap" title="Link to this definition">¶</a></dt>
+<dd><p>Function to generate source maps for binned likelihood analysis</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><ul class="simple">
+<li><p><strong>params</strong> (<em>dict : parameter dict from read_parameters</em>)</p></li>
+<li><p><strong>clobber</strong> (<em>boolean : If true</em><em>, </em><em>overwrite existing files</em>)</p></li>
+<li><p><strong>fheader</strong> (<em>string : Unique ID added to file names to avoid name conflicts</em>)</p></li>
+</ul>
+</dd>
+<dt class="field-even">Return type<span class="colon">:</span></dt>
+<dd class="field-even"><p>None</p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py function">
+<dt class="sig sig-object py" id="analyze_fermi.gen_ul_xml">
+<span class="sig-prename descclassname"><span class="pre">analyze_fermi.</span></span><span class="sig-name descname"><span class="pre">gen_ul_xml</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">input_file</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">output_file</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">name</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">smodel</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#analyze_fermi.gen_ul_xml" title="Link to this definition">¶</a></dt>
+<dd><dl class="simple">
+<dt>Simple function to setup the UL xml files</dt><dd><p>Parameters</p>
+</dd>
+</dl>
+<p>name : string : name of our source
+flux : string : flux to install for our model</p>
+<dl class="field-list simple">
+<dt class="field-odd">Return type<span class="colon">:</span></dt>
+<dd class="field-odd"><p>None</p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py function">
+<dt class="sig sig-object py" id="analyze_fermi.generate_residuals">
+<span class="sig-prename descclassname"><span class="pre">analyze_fermi.</span></span><span class="sig-name descname"><span class="pre">generate_residuals</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">params</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">clobber</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">fheader</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#analyze_fermi.generate_residuals" title="Link to this definition">¶</a></dt>
+<dd><p>Function to create residuals between the counts map and the model
+map. Simply generates a model map with the FermiTools, then takes
+the difference between that and a similar counts map</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><ul class="simple">
+<li><p><strong>params</strong> (<em>dict : parameter dict from read_parameters</em>)</p></li>
+<li><p><strong>clobber</strong> (<em>boolean : If true</em><em>, </em><em>overwrite existing files</em>)</p></li>
+<li><p><strong>fheader</strong> (<em>string : Unique ID added to avoid filename conflicts</em>)</p></li>
+</ul>
+</dd>
+<dt class="field-even">Return type<span class="colon">:</span></dt>
+<dd class="field-even"><p>None</p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py function">
+<dt class="sig sig-object py" id="analyze_fermi.light_curve_multiproc">
+<span class="sig-prename descclassname"><span class="pre">analyze_fermi.</span></span><span class="sig-name descname"><span class="pre">light_curve_multiproc</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">params</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">clobber</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">log</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">'mp_log'</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#analyze_fermi.light_curve_multiproc" title="Link to this definition">¶</a></dt>
+<dd><p>Function to build a light curve
+Uses window width in parameter file, and step size
+This is the multiprocessing version of this function</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><ul class="simple">
+<li><p><strong>params</strong> (<em>dict : parameter dict from read_parameters</em>)</p></li>
+<li><p><strong>clobber</strong> (<em>boolean : If true</em><em>, </em><em>overwrite existing files</em>)</p></li>
+<li><p><strong>log</strong> (<em>string : base file name to load data</em>)</p></li>
+</ul>
+</dd>
+<dt class="field-even">Return type<span class="colon">:</span></dt>
+<dd class="field-even"><p>None</p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py function">
+<dt class="sig sig-object py" id="analyze_fermi.light_curve_singleproc">
+<span class="sig-prename descclassname"><span class="pre">analyze_fermi.</span></span><span class="sig-name descname"><span class="pre">light_curve_singleproc</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">params</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">clobber</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">log</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">'results.csv'</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#analyze_fermi.light_curve_singleproc" title="Link to this definition">¶</a></dt>
+<dd><p>Function to build a light curve
+Uses window width in parameter file, and step size
+This is the simple version of this function, useful for debugging
+any issues encountered during the analysis. Runs on a single core.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><ul class="simple">
+<li><p><strong>params</strong> (<em>dict : parameter dict from read_parameters</em>)</p></li>
+<li><p><strong>clobber</strong> (<em>boolean : If true</em><em>, </em><em>overwrite existing files</em>)</p></li>
+<li><p><strong>log</strong> (<em>string : file to save lc data</em>)</p></li>
+</ul>
+</dd>
+<dt class="field-even">Return type<span class="colon">:</span></dt>
+<dd class="field-even"><p>None</p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py function">
+<dt class="sig sig-object py" id="analyze_fermi.likelihood_wrapper">
+<span class="sig-prename descclassname"><span class="pre">analyze_fermi.</span></span><span class="sig-name descname"><span class="pre">likelihood_wrapper</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">run_pars</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#analyze_fermi.likelihood_wrapper" title="Link to this definition">¶</a></dt>
+<dd><p>Simple wrapper function to run the likelihood analysis using
+only a single argument. Makes it easier for the multi-processing
+functions to run many likelihood analyses. Will automatically
+compute upper limits if the test statistic from the main fit is
+less than 4. Set up_lim_lc to no in the parameter file to disable
+this behavior.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><p><strong>run_pars</strong> (<em>list : list</em><em> of </em><em>all likelihood parameters.</em>) – Should contain, in this order:
+params : dict : parameter dict from read_parameters
+tstart : float : time (MET) for data start
+tstart : float : time (MET) for data end
+clobber : boolean : If true, overwrite existing files
+fheader : string : Unique ID added to avoid filename conflicts
+log : filename to save data to
+cleanup : boolean : If true, delete large intermediate files</p>
+</dd>
+<dt class="field-even">Return type<span class="colon">:</span></dt>
+<dd class="field-even"><p>Flux , Flux_Error , TS</p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py function">
+<dt class="sig sig-object py" id="analyze_fermi.lt_exp_maps">
+<span class="sig-prename descclassname"><span class="pre">analyze_fermi.</span></span><span class="sig-name descname"><span class="pre">lt_exp_maps</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">params</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">clobber</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">fheader</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#analyze_fermi.lt_exp_maps" title="Link to this definition">¶</a></dt>
+<dd><p>Generates livetime cubes and exposure maps for binned likelihood
+Fermi analysis</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><ul class="simple">
+<li><p><strong>params</strong> (<em>dict : parameter dict from read_parameters</em>)</p></li>
+<li><p><strong>clobber</strong> (<em>boolean : If true</em><em>, </em><em>overwrite existing files</em>)</p></li>
+<li><p><strong>fheader</strong> (<em>string : Unique ID added to file names to avoid name conflicts</em>)</p></li>
+</ul>
+</dd>
+<dt class="field-even">Return type<span class="colon">:</span></dt>
+<dd class="field-even"><p>None</p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py function">
+<dt class="sig sig-object py" id="analyze_fermi.met_to_tpeak">
+<span class="sig-prename descclassname"><span class="pre">analyze_fermi.</span></span><span class="sig-name descname"><span class="pre">met_to_tpeak</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">met</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">params</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#analyze_fermi.met_to_tpeak" title="Link to this definition">¶</a></dt>
+<dd><p>Function to compute the time in days since peak given a Fermi MET</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><ul class="simple">
+<li><p><strong>met</strong> (<em>float : Fermi MET</em>)</p></li>
+<li><p><strong>params</strong> (<em>dict : parameter dict from read_parameters</em>)</p></li>
+</ul>
+</dd>
+<dt class="field-even">Returns<span class="colon">:</span></dt>
+<dd class="field-even"><p><strong>t_peak</strong></p>
+</dd>
+<dt class="field-odd">Return type<span class="colon">:</span></dt>
+<dd class="field-odd"><p>float : time since peak in days</p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py function">
+<dt class="sig sig-object py" id="analyze_fermi.print_params">
+<span class="sig-prename descclassname"><span class="pre">analyze_fermi.</span></span><span class="sig-name descname"><span class="pre">print_params</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">params</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#analyze_fermi.print_params" title="Link to this definition">¶</a></dt>
+<dd><p>Simple function to print out our parameters</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><p><strong>params</strong> (<em>dict : parameter dictionary from read_parameters</em>)</p>
+</dd>
+<dt class="field-even">Return type<span class="colon">:</span></dt>
+<dd class="field-even"><p>None</p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py function">
+<dt class="sig sig-object py" id="analyze_fermi.read_parameters">
+<span class="sig-prename descclassname"><span class="pre">analyze_fermi.</span></span><span class="sig-name descname"><span class="pre">read_parameters</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">pfile</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#analyze_fermi.read_parameters" title="Link to this definition">¶</a></dt>
+<dd><p>Function to read analysis parameter file
+All parameter options should get set in this file
+See template parameter file for available parameters</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><p><strong>pfile</strong> (<em>string : name</em><em> of </em><em>parameter file</em>)</p>
+</dd>
+<dt class="field-even">Returns<span class="colon">:</span></dt>
+<dd class="field-even"><p><strong>params</strong></p>
+</dd>
+<dt class="field-odd">Return type<span class="colon">:</span></dt>
+<dd class="field-odd"><p>dict : contains all analysis options and parameters</p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py function">
+<dt class="sig sig-object py" id="analyze_fermi.setup_events_file">
+<span class="sig-prename descclassname"><span class="pre">analyze_fermi.</span></span><span class="sig-name descname"><span class="pre">setup_events_file</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">clobber</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">False</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#analyze_fermi.setup_events_file" title="Link to this definition">¶</a></dt>
+<dd><p>Simple function to setup files listing all data, and identifies the
+spacecraft file. Just leave all data / spacecraft files in current
+directory and this will prep data as need be.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><p><strong>clobber</strong> (<em>boolean : If true</em><em>, </em><em>will overwite any existing event list</em>)</p>
+</dd>
+<dt class="field-even">Returns<span class="colon">:</span></dt>
+<dd class="field-even"><p><ul class="simple">
+<li><p><strong>infile</strong> (<em>string : name of event filename</em>)</p></li>
+<li><p><strong>scfile</strong> (<em>string : name of spacecraft file</em>)</p></li>
+</ul>
+</p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py function">
+<dt class="sig sig-object py" id="analyze_fermi.setup_pl">
+<span class="sig-prename descclassname"><span class="pre">analyze_fermi.</span></span><span class="sig-name descname"><span class="pre">setup_pl</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">params</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">flux</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">index</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">free</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">False</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#analyze_fermi.setup_pl" title="Link to this definition">¶</a></dt>
+<dd><p>Simple function to setup a power law model for a source
+used for upper limit computations</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><ul class="simple">
+<li><p><strong>params</strong> (<em>dict : parameter dict from read_parameters</em>)</p></li>
+<li><p><strong>model</strong> (<em>string : name</em><em> of </em><em>input xml file</em>)</p></li>
+</ul>
+</dd>
+<dt class="field-even">Returns<span class="colon">:</span></dt>
+<dd class="field-even"><p><strong>model</strong></p>
+</dd>
+<dt class="field-odd">Return type<span class="colon">:</span></dt>
+<dd class="field-odd"><p>string : string ready to be written into xml file</p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py function">
+<dt class="sig sig-object py" id="analyze_fermi.setup_tsmap_xml">
+<span class="sig-prename descclassname"><span class="pre">analyze_fermi.</span></span><span class="sig-name descname"><span class="pre">setup_tsmap_xml</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">params</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">input_file</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#analyze_fermi.setup_tsmap_xml" title="Link to this definition">¶</a></dt>
+<dd><p>Function to build a xml input file suitable for computing
+background TSMaps. Basically just takes an xml file and strips
+the model for our source. Will also freeze out model parameters
+(otherwise, runtime quickly becomes intractable. Takes in the xml
+file for the model that we want to use.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><ul class="simple">
+<li><p><strong>params</strong> (<em>dict : parameter dict from read_parameters</em>)</p></li>
+<li><p><strong>input_file</strong> (<em>string : name</em><em> of </em><em>xml input file</em>)</p></li>
+</ul>
+</dd>
+<dt class="field-even">Return type<span class="colon">:</span></dt>
+<dd class="field-even"><p>None</p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py function">
+<dt class="sig sig-object py" id="analyze_fermi.tpeak_to_met">
+<span class="sig-prename descclassname"><span class="pre">analyze_fermi.</span></span><span class="sig-name descname"><span class="pre">tpeak_to_met</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">time</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">params</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#analyze_fermi.tpeak_to_met" title="Link to this definition">¶</a></dt>
+<dd><p>Function to compute Fermi MET, given a time relative to nova peak.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><ul class="simple">
+<li><p><strong>time</strong> (<em>float : Time since peak</em><em> (</em><em>negative for before peak</em><em>) </em><em>in days</em>)</p></li>
+<li><p><strong>params</strong> (<em>dict : parameter dict from read_parameters</em>)</p></li>
+</ul>
+</dd>
+<dt class="field-even">Returns<span class="colon">:</span></dt>
+<dd class="field-even"><p><strong>MET</strong></p>
+</dd>
+<dt class="field-odd">Return type<span class="colon">:</span></dt>
+<dd class="field-odd"><p>float : Fermi MET in seconds</p>
+</dd>
+</dl>
+</dd></dl>
+
+</section>
+<section id="module-plot_lc">
+<span id="plot-lc-module"></span><h1>plot_lc Module<a class="headerlink" href="#module-plot_lc" title="Link to this heading">¶</a></h1>
+<p>Short routine to collect and plot the results of a light curve
+generated with analyze_fermi.py</p>
+<dl class="py function">
+<dt class="sig sig-object py" id="plot_lc.plot_light_curve">
+<span class="sig-prename descclassname"><span class="pre">plot_lc.</span></span><span class="sig-name descname"><span class="pre">plot_light_curve</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">params</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">display</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">False</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#plot_lc.plot_light_curve" title="Link to this definition">¶</a></dt>
+<dd><p>Function to plot light curve results from analyze_fermi
+Assumes that you are running in the directory with the data
+TODO: Update this routine to accept data directory arguments
+Takes in a parameter dictionary, and will produce a TS plot
+(Showing TS as a function of time) and will produce a light curve
+complete with uncertainties and upper limits as appropriate.
+All times will be plotted relative to the peak listed in the
+given parameter file.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><ul class="simple">
+<li><p><strong>params</strong> (<em>dict : parameter dict from read_parameters</em>)</p></li>
+<li><p><strong>display</strong> (<em>boolean : If true</em><em>, </em><em>run plt.show</em><em>(</em><em>) </em><em>to display figures</em>)</p></li>
+</ul>
+</dd>
+<dt class="field-even">Return type<span class="colon">:</span></dt>
+<dd class="field-even"><p>None</p>
+</dd>
+</dl>
+</dd></dl>
+
+</section>
+<section id="indices-and-tables">
+<h1>Indices and tables<a class="headerlink" href="#indices-and-tables" title="Link to this heading">¶</a></h1>
+<ul class="simple">
+<li><p><a class="reference internal" href="genindex.html"><span class="std std-ref">Index</span></a></p></li>
+<li><p><a class="reference internal" href="py-modindex.html"><span class="std std-ref">Module Index</span></a></p></li>
+<li><p><a class="reference internal" href="search.html"><span class="std std-ref">Search Page</span></a></p></li>
+</ul>
+</section>
+
+
+          </div>
+          
+        </div>
+      </div>
+      <div class="sphinxsidebar" role="navigation" aria-label="Main">
+        <div class="sphinxsidebarwrapper">
+<h1 class="logo"><a href="#">NovaFermi</a></h1>
+
+
+
+
+
+
+
+
+
+<search id="searchbox" style="display: none" role="search">
+    <div class="searchformwrapper">
+    <form class="search" action="search.html" method="get">
+      <input type="text" name="q" aria-labelledby="searchlabel" autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false" placeholder="Search"/>
+      <input type="submit" value="Go" />
+    </form>
+    </div>
+</search>
+<script>document.getElementById('searchbox').style.display = "block"</script><h3>Navigation</h3>
+
+<div class="relations">
+<h3>Related Topics</h3>
+<ul>
+  <li><a href="#">Documentation overview</a><ul>
+  </ul></li>
+</ul>
+</div>
+
+
+
+
+
+
+
+
+        </div>
+      </div>
+      <div class="clearer"></div>
+    </div>
+    <div class="footer">
+      &#169;2025, Peter Craig.
+      
+      |
+      Powered by <a href="https://www.sphinx-doc.org/">Sphinx 8.2.3</a>
+      &amp; <a href="https://alabaster.readthedocs.io">Alabaster 1.0.0</a>
+      
+      |
+      <a href="_sources/index.rst.txt"
+          rel="nofollow">Page source</a>
+    </div>
+
+    
+
+    
+  </body>
+</html>
