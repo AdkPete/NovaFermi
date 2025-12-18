@@ -23,6 +23,7 @@ import gc
 import scipy.optimize as opt
 import gen_alg as ga
 import contextlib
+import traceback
 
 import gt_apps as my_apps
 from GtApp import GtApp
@@ -242,7 +243,7 @@ def print_params(params):
         rows.append([key,str(params[key])])
     print (tabulate.tabulate(rows) + "\n")
 
-def gen_model(params, fheader):
+def gen_model(params, fheader, lock=None):
     '''
     Function to create an input model file
     Note: This function will not overwrite an existing input model.
@@ -271,7 +272,7 @@ def gen_model(params, fheader):
     
     input("Please edit input_model to include source models. Then, hit enter")
     
-def data_selection(params, tstart, tend, clobber, fheader):
+def data_selection(params, tstart, tend, clobber, fheader, lock=None):
     '''
     Function to run the data selection
     Runs the gtselect and mktime FermiTools tasks to run the data selection
@@ -311,6 +312,7 @@ def data_selection(params, tstart, tend, clobber, fheader):
     ## Run gtselect
 
     if not os.path.exists(out_name) or clobber:
+        checklocks(lock)
         my_apps.filter.run()
     
     gtiname = f'{params["name"]}{fheader}_filtered_gti.fits'
@@ -321,9 +323,10 @@ def data_selection(params, tstart, tend, clobber, fheader):
     my_apps.maketime['outfile'] = gtiname
 
     if not os.path.exists(gtiname) or clobber:
+        checklocks(lock)
         my_apps.maketime.run()
 
-def lt_exp_maps(params , clobber , fheader):
+def lt_exp_maps(params , clobber , fheader, lock=None):
     '''
     Generates livetime cubes and exposure maps for binned likelihood
     Fermi analysis
@@ -350,6 +353,7 @@ def lt_exp_maps(params , clobber , fheader):
     my_apps.expCube['binsz'] = 1
 
     if not os.path.exists(ltcube) or clobber:
+        checklocks(lock)
         my_apps.expCube.run()
 
 
@@ -377,9 +381,10 @@ def lt_exp_maps(params , clobber , fheader):
     expCube2['enumbins'] = params["N_ebin"]
 
     if not os.path.exists(expmap) or clobber:
+        checklocks(lock)
         expCube2.run()
         
-def gen_srcmap(params, clobber, fheader):
+def gen_srcmap(params, clobber, fheader, lock=None):
     '''
     Function to generate source maps for binned likelihood analysis
     
@@ -403,9 +408,10 @@ def gen_srcmap(params, clobber, fheader):
     my_apps.srcMaps['evtype'] = '3'
 
     if not os.path.exists(src_name) or clobber:
+        checklocks(lock)
         my_apps.srcMaps.run()
         
-def bin_data(params, clobber, fheader):
+def bin_data(params, clobber, fheader, lock=None):
     '''
     Function to generate counts maps / cubes
     
@@ -438,6 +444,7 @@ def bin_data(params, clobber, fheader):
     my_apps.evtbin['enumbins'] = params["N_ebin"]
 
     if not os.path.exists(f'{params["name"]}{fheader}_filtered_cmap.fits') or clobber:
+        checklocks(lock)
         my_apps.evtbin.run()
 
     
@@ -462,9 +469,10 @@ def bin_data(params, clobber, fheader):
     my_apps.evtbin['enumbins'] = params["N_ebin"]
 
     if not os.path.exists(f'{params["name"]}{fheader}_filtered_ccube.fits') or clobber:
+        checklocks(lock)
         my_apps.evtbin.run()
 
-def fit_model(params, fheader, get_like, inmod = "No" , opt = 'NewMINUIT', silent=False):
+def fit_model(params, fheader, get_like, inmod = "No" , opt = 'NewMINUIT', silent=False, lock=None):
     '''
     Function to run the model fitting steps
     This version is the recommended fitting process
@@ -495,6 +503,7 @@ def fit_model(params, fheader, get_like, inmod = "No" , opt = 'NewMINUIT', silen
     
     if silent:
         drmnfb_comm += ">/dev/null "
+    checklocks(lock)
     subprocess.run(drmnfb_comm,shell=True)
     
     obs = BinnedObs(srcMaps=src_name,
@@ -505,31 +514,47 @@ def fit_model(params, fheader, get_like, inmod = "No" , opt = 'NewMINUIT', silen
 
     try:
         like.tol = 0.0001
+        checklocks(lock)
         res = like.fit(verbosity=1,covar=True,optObject=likeobj)
     except:
         try:
             like.tol = 0.01
+            checklocks(lock)
             res = like.fit(verbosity=1,covar=True,optObject=likeobj)
         except:
             like = BinnedAnalysis(obs,inmod,optimizer="DRMNFB")
             likeobj=pyLike.NewMinuit(like.logLike)
             like.tol = 0.01
-            res = like.fit(verbosity=1,covar=True,optObject=likeobj)
+            checklocks(lock)
+            res = like.fit(verbosity=1)
     print("Source Convergence Status" , likeobj.getRetCode())
     if get_like:
         
         return res , like.flux(params["name"] , emin = params["emin"]) , like.model[params["name"]].funcs["Spectrum"]["Prefactor"]
     like.logLike.writeXml(f'fit_model{fheader}.xml')
-    Nova_flux = like.flux(params["name"] , emin = params["emin"])
-    Nova_flux_err = like.fluxError(params["name"], emin=params["emin"])
+    Nova_flux = like.flux(params["name"] , emin = params["emin"], emax=params["emax"])
+    Nova_flux_err = like.fluxError(params["name"], emin=params["emin"], emax=params["emax"])
     
     TS = like.Ts(f'{params["name"]}')
     
     
     return Nova_flux , Nova_flux_err , TS
 
-
-def binned_likelihood(params, tstart , tend , clobber = False, fheader = "", silent=False):
+def checklocks(lock):
+    '''
+    Function to manage multiprocessing locks. Intended to make sure that
+    no two FermiTools steps get called at exactly the same time. If the lock is
+    not available, will wait for it and then sleep for a small amount of time.
+    
+    '''
+    
+    if lock is None:
+        return 0
+    else:
+        with lock:
+            time.sleep(1)
+            
+def binned_likelihood(params, tstart , tend , clobber = False, fheader = "", silent=False, lock = None):
     '''
     Function to run the full binned likelihood analysis pipeline
     Will run this once, and produces a TS value, and a flux
@@ -554,16 +579,16 @@ def binned_likelihood(params, tstart , tend , clobber = False, fheader = "", sil
         rf = open(runlogname , "a")
         rf.write("Beginning Data Selection\n")
         rf.close()
-        
-    data_selection(params, tstart, tend, clobber , fheader)
     
+    data_selection(params, tstart, tend, clobber , fheader, lock)
     
+
     if params["runlog"]:
         rf = open(runlogname , "a")
         rf.write("Beginning Data Binning\n")
         rf.close()
         
-    bin_data(params , clobber , fheader)
+    bin_data(params , clobber , fheader, lock)
     
     if params["runlog"]:
         rf = open(runlogname , "a")
@@ -571,7 +596,7 @@ def binned_likelihood(params, tstart , tend , clobber = False, fheader = "", sil
         rf.close()
     
     
-    lt_exp_maps(params , clobber , fheader)
+    lt_exp_maps(params , clobber , fheader, lock)
     
     if params["runlog"]:
         rf = open(runlogname , "a")
@@ -585,21 +610,21 @@ def binned_likelihood(params, tstart , tend , clobber = False, fheader = "", sil
         rf.write("Generating Source Map\n")
         rf.close()
     
-    gen_srcmap(params, clobber, fheader)
+    gen_srcmap(params, clobber, fheader, lock)
     
     if params["runlog"]:
         rf = open(runlogname , "a")
         rf.write("Fitting Source Model\n")
         rf.close()
         
-    Flux , error , TS = fit_model(params , fheader, False, silent=silent)
+    Flux , error , TS = fit_model(params , fheader, False, silent=silent,lock=lock)
     
     if params["runlog"]:
         rf = open(runlogname , "a")
         rf.write("Building model and residual maps\n")
         rf.close()
         
-    generate_residuals(params, clobber, fheader)
+    generate_residuals(params, clobber, fheader, lock)
     
     if params["runlog"]:
         rf = open(runlogname , "a")
@@ -722,11 +747,19 @@ def likelihood_wrapper(run_pars):
     
     
     try:
-        F , unc , ts = binned_likelihood(*run_pars[0:5])
-    except:
+        F , unc , ts = binned_likelihood(*run_pars[0:5], lock = run_pars[6])
+    except Exception as e:
+        err_l = "err_log_1_" + run_pars[4] + ".log"
+        outlog = open(err_l + "w")
+        outlog.write(traceback.format_exc())
+        outlog.close()
         try:
-            F , unc , ts = binned_likelihood(*run_pars[0:5])
+            F , unc , ts = binned_likelihood(*run_pars[0:5], lock = run_pars[6])
         except:
+            err_l = "err_log_1_" + run_pars[4] + ".log"
+            outlog = open(err_l + "w")
+            outlog.write(traceback.format_exc())
+            outlog.close()
             return [0,0,0,0]
         # I know what you're thinking ... and yes, this does look insane.
         # However, there is a reason for simply trying again. Sometimes, there
@@ -737,13 +770,15 @@ def likelihood_wrapper(run_pars):
         # rewrite it; if a process tries to read this file at the same time
         # that another file deletes it, we get a crash. So, if we try again
         # the code will pick up at whatever step we left off on, and the file
-        # will most likely exist.
+        # will most likely exist. Nominally the locking mechanisms now
+        # fix this, but code is still here for testing.
 
-        
+    F , Flow , Fhigh , DeltaLogL = compute_upper_lim(run_pars[0] , run_pars[4])
     F2 = -99
     if ts < run_pars[0]["ts_lim"] and run_pars[0]["up_lim_lc"]:
         try:
             F , Flow , Fhigh , DeltaLogL = compute_upper_lim(run_pars[0] , run_pars[4])
+            
             unc = -1
             try:
             
@@ -819,7 +854,7 @@ def light_curve_singleproc(params, clobber, log = "mp_log"):
         fheader = f"_{params['window']}_{params['lcstep']}_{tpeak_start}_st{id}"
         st = t - window_half_seconds
         et = t + window_half_seconds
-        param_row = [params, st, et, clobber, fheader, log]
+        param_row = [params, st, et, clobber, fheader, log, None]
         param_row.append( params["cleanlc"])
         log_file = param_row[4] + param_row[5] + ".csv"
         if not os.path.exists(log_file):
@@ -901,32 +936,34 @@ def light_curve_multiproc(params , clobber, log="mp_log"):
     t = start + step_seconds / 2.0
     tpeak_start = met_to_tpeak(start, params)
 
-    
-    id = 0
-    while t + window_half_seconds < end:
-        
-        fheader = f"_{params['window']}_{params['lcstep']}_{tpeak_start}_st{id}"
-        st = t - window_half_seconds
-        et = t + window_half_seconds
-        param_row = [params, st, et, clobber, fheader, log]
-        param_row.append( params["cleanlc"])
-        log_file = param_row[4] + param_row[5] + ".csv"
-        if not os.path.exists(log_file) or clobber:
-            
-            param_array.append(param_row)
-        t += step_seconds
-        id += 1
+    with mp.Manager() as manager:
+        lock = manager.Lock()
+        id = 0
+        while t < end:
 
-    ## maxtasksperchild = 1 is designed to resolve a memory usage problem
-    ## Probably mildly inneficient, but better than consuming many GB of
-    ## RAM per process.
-    
-    
-    results = []
-    with mp.Pool(processes=params["nproc"], maxtasksperchild=1) as p:
-        imres = p.imap(likelihood_wrapper , param_array, chunksize=1)
-        for res in imres:
-            results.append(res)
+            fheader = f"_{params['window']}_{params['lcstep']}_{tpeak_start}_st{id}"
+            st = t - window_half_seconds
+            et = t + window_half_seconds
+            param_row = [params, st, et, clobber, fheader, log, lock]
+            param_row.append( params["cleanlc"])
+            log_file = param_row[4] + param_row[5] + ".csv"
+            if not os.path.exists(log_file) or clobber:
+                
+                param_array.append(param_row)
+            t += step_seconds
+            id += 1
+
+        ## maxtasksperchild = 1 is designed to resolve a memory usage problem
+        ## Probably mildly inneficient, but better than consuming many GB of
+        ## RAM per process.
+        print (len(param_array))
+        
+        
+        results = []
+        with mp.Pool(processes=params["nproc"], maxtasksperchild=1) as p:
+            imres = p.imap(likelihood_wrapper , param_array, chunksize=1)
+            for res in imres:
+                results.append(res)
     np.save(log + ".npy" , results)
     
     Flux = []
@@ -1030,8 +1067,6 @@ def setup_pl(params,flux,index , free = False):
     model += f'</source>\n'
     return model
 
-
-    
 def compute_upper_lim(params, fheader):
     '''
     Function to compute the upper limit on the flux for a source
@@ -1062,90 +1097,129 @@ def compute_upper_lim(params, fheader):
     ULF : float : upper limit flux
     '''
 
+    opt = 'NewMINUIT'
     runlogname = "runlog" + fheader + ".log"
     if params["runlog"]:
         rf = open(runlogname , "a")
         rf.write("Initiating Upper Limit Calculation\n")
         rf.close()
-        
     
-    index = -2.1
-    
-    def L(F):
-        '''
-        Function to run the model fitting and return -2 * logL. Note that
-        fit_model returns -1 * logL. We adopt -2 * logL because 2 * logL
-        should asymptotically behave as chi-square, and is the basis for
-        this algorithm. Could also drop the factor of two and adjust the 
-        DeltaL cut appropriately.
-        '''
-        
-        mod = setup_pl(params,F,index)
-        gen_ul_xml(f'fit_model{fheader}.xml',f"ul{fheader}.xml",params["name"],mod)
-        logL , Flux , fpar = fit_model(params , fheader, True, inmod=f"ul{fheader}.xml")
-        return 2 * logL , Flux
-    
+
     if params["runlog"]:
         rf = open(runlogname , "a")
         rf.write("Finding Best Fit Model\n")
         rf.close()
         
-    ## Compute max likelihood model
-    Fmax = 100
-    base = 1e-5
+    ## Setup model, and find best fit parameters first
+    index = -2.1
+    src_name = f'{params["name"]}{fheader}_srcmap.fits'
     mod = setup_pl(params,1.0,index, free=True)
     gen_ul_xml(f'fit_model{fheader}.xml',f"ul{fheader}.xml",params["name"],mod)
     
+    obs = BinnedObs(srcMaps=src_name,
+        binnedExpMap=f'{params["name"]}{fheader}_BinnedExpMap.fits',
+        expCube=f'{params["name"]}{fheader}_ltcube.fits',irfs='P8R3_SOURCE_V3')
+    like = BinnedAnalysis(obs,f'ul{fheader}.xml',optimizer=opt)
+    likeobj=pyLike.NewMinuit(like.logLike)
 
-    base_L , base_F , base_p =fit_model(params , fheader, True, inmod=f"ul{fheader}.xml")
-    base_L *= 2
-    
-    def f(F):
-        ## Short function to compute likelihoods and fluxes. The intent
-        ## was to pass this into other functions, though that isn't how
-        ## this code ended up
-        nL, nF = L(F)
-        return nL - base_L , nF
-    
-    if params["runlog"]:
-        rf = open(runlogname , "a")
-        rf.write("Setting up start bracket\n")
-        rf.close()
+    breakpoint()
+    try:
+        like.tol = 0.0001
+        res = like.fit(verbosity=1,covar=True,optObject=likeobj)
+    except:
         
-    p_low = np.log10(base_p)
+        print ("Changing Tolerance for fitting")
+        like.tol = 0.01
+        res = like.fit(verbosity=1,covar=True,optObject=likeobj)
+    
+    def L(P):
+        '''
+        Function to run the model fitting and return -logL. The intend
+        is to find the point where the return of this function is 
+        2.71/2 greater than the best fitting likelihood
+        '''
+        
+        ## Freeze out our model Prefactor
+        like.model[params["name"]]["Spectrum"].getParam("Prefactor").setFree(False)
+        
+        ## Reset prefactor:
+        like.model[params["name"]]["Spectrum"]["Prefactor"] = P
+        
+        like.model[params["name"]]["Spectrum"]["Index1"] = index
+        like.model[params["name"]]["Spectrum"].getParam("Index1").setFree(False)
+        ## Fit model to compute likelihood
+        try:
+            like.tol = 0.001
+            like.optimizer = opt
+            res = like.fit(verbosity=1,covar=True,optObject=likeobj)
+        except:
+            try:
+                print ("Changing Tolerance for fitting")
+                like.tol = 0.01
+                like.optimizer = "DRMNFB"
+                like.fit(verbosity=1)
+                like.optimizer="NewMinuit"
+                res = like.fit(verbosity=1,covar=True,optObject=likeobj)
+            except:
+                return np.inf
+                
+        
+        Flux = like.flux(params["name"] , emin = params["emin"], emax = params["emax"])
+        
+        return res , Flux
+    def old_L(F):
+                
+        mod = setup_pl(params,F,index)
+        gen_ul_xml(f'fit_model{fheader}.xml',f"ul{fheader}.xml",params["name"],mod)
+        logL , Flux , fpar = fit_model(params , fheader, True, inmod=f"ul{fheader}.xml")
+        return logL , Flux
+    ## Setup starting point for root finding
+
+    Like_cut = 2.71 / 2.0
+    L0 = res
+    p_low = like.model[params["name"]].funcs["Spectrum"]["Prefactor"]
+    p_low = np.log10(p_low)
+    Fmax = 0.05
     p_high = np.log10(Fmax)
-    L_low = -2.71 ##Delta is 0 for the max likelihood, so this is 2*DeltaL - 2.71
-    L_high , Flux_high = f(10 ** p_high)
-    L_high -= 2.71
+    L_low = -1 * Like_cut ##Delta is 0 for the max likelihood, so this is DeltaL - 2.71/2.0
+    L_high = L(10 ** p_high)[0] - Like_cut
+    
+    if L_high < 0:
+        p_high = 0.5
+        L_high = L(0.5)[0] - Like_cut
+        if L_high < 0:
+            print ("UL Failure, could not find suitable bracket")
+        
+            return -1
+    
     lpar = [p_low , p_high]
     Likes = [L_low , L_high]
-    if L_high < 0:
-        print ("UL Failure, either no solutions or multiple solutions in bracket")
-        
-        return -1
     fm = []
     Lm = []
-    
+    lmids = []
     N = 1
     flux_mid = "N/A"
     convergence_requirement = 0.002
     step_numb = 0
     max_step = 40
     min_step = 12
+    
     while step_numb < max_step: ## 20 steps is sufficient to get to a flux sltn.
-        
+
         print (f"\n\n Starting step number {step_numb + 1}")
         print (f" Current flux is {flux_mid} \n\n")
         if params["runlog"]:
             rf = open(runlogname , "a")
             rf.write(f"Starting step number {step_numb + 1}\n")
             rf.close()
+            
         mid_p = (p_low + p_high) / 2.0
-        L_mid , flux_mid = f(10 ** mid_p)
-        L_mid -= 2.71
+        L_mid , flux_mid= L(10 ** mid_p)
+        L_mid = L_mid  - L0 - Like_cut
         fm.append(flux_mid)
         lpar.append(mid_p)
         Likes.append(L_mid)
+        lmids.append(mid_p)
         if L_mid * L_low < 0:
             L_high = L_mid
             p_high = mid_p
@@ -1164,27 +1238,17 @@ def compute_upper_lim(params, fheader):
             if step_numb >= min_step:
                 print (f"Flux has Converged in {step_numb} steps")
                 break
-            
-    if params["runlog"]:
-        rf = open(runlogname , "a")
-        rf.write("Upper Limit Computation Complete; running final analysis\n")
-        rf.close()
-        
-    mod = setup_pl(params,10 ** ((p_low + p_high) / 2.0),-2.1)
+    try:
+        l_low , Flux_low = L(10**p_low)
+        l_h , Flux_high = L(10**p_high)
+    except:
+        Flux_low = -1
+        Flux_high = -1
     
-    gen_ul_xml(f'fit_model{fheader}.xml',f"ul{fheader}.xml",params["name"],mod)
-    logL , Flux_final , fpar = fit_model(params , fheader, True, inmod=f"ul{fheader}.xml")
+    l_mid , Flux_final = L( 10 ** ( (p_high + p_low) / 2.0) ) 
     
-    mod = setup_pl(params,10 ** p_low,-2.1)
-    gen_ul_xml(f'fit_model{fheader}.xml',f"ul{fheader}.xml",params["name"],mod)
-    logL1 , Flux_flow , fpar1 = fit_model(params , fheader, True, inmod=f"ul{fheader}.xml")
-    
-    mod = setup_pl(params,10 ** p_high,-2.1)
-    gen_ul_xml(f'fit_model{fheader}.xml',f"ul{fheader}.xml",params["name"],mod)
-    logL2 , Flux_fhigh , fpar2 = fit_model(params , fheader, True, inmod=f"ul{fheader}.xml")
-    print (Flux_final , Flux_flow , Flux_fhigh , 2 * (logL - base_L))
 
-    return Flux_final , Flux_flow , Flux_fhigh , 2 * logL - base_L
+    return Flux_final , Flux_low , Flux_high , l_mid - L0
 
 def cleanup(params , fheader, all_files = False):
     
@@ -1210,7 +1274,7 @@ def cleanup(params , fheader, all_files = False):
     
     for i in os.listdir():
         
-        if params["name"] not in i or fheader not in i:
+        if (params["name"] not in i and "temp" not in i) or fheader not in i:
             continue
         
         if "srcmap" in i: ## Source Maps
@@ -1320,7 +1384,7 @@ def TS_Map(params, input_file, clobber):
         my_apps.TsMap.run()
         
 
-def generate_residuals(params, clobber, fheader):
+def generate_residuals(params, clobber, fheader, lock=None):
     '''
     Function to create residuals between the counts map and the model
     map. Simply generates a model map with the FermiTools, then takes
@@ -1351,6 +1415,7 @@ def generate_residuals(params, clobber, fheader):
     mmc += f"bexpmap={params['name']}{fheader}_BinnedExpMap.fits"
     print (mmc)
     if not os.path.exists(f"{params['name']}_Model{fheader}.fits") or clobber:
+        checklocks(lock)
         subprocess.run(mmc,shell=True)
     
     ## Generate cmap for residuals:
@@ -1373,6 +1438,7 @@ def generate_residuals(params, clobber, fheader):
     my_apps.evtbin['emax'] = params["emax"]
     my_apps.evtbin['enumbins'] = params["N_ebin"]
     if not os.path.exists(cmap_name) or clobber:
+        checklocks(lock)
         my_apps.evtbin.run()
     
     ##Finally, generate the actual residuals
@@ -1418,8 +1484,8 @@ def find_max_TS(params):
     print (result)
     print (result.x)
     '''
-    Bx , Bf , neval = ga.genetic_algorithm(opt_func , boundaries, popsize = 30,
-                            Niter = 10, nproc = params["nproc"], mutation_rate=0.05)
+    Bx , Bf , neval = ga.genetic_algorithm(opt_func , boundaries, popsize = params["popsize"],
+                Niter = params["Niter"], nproc = params["nproc"], mutation_rate=params["mutation"])
     print (Bx , Bf)
     return Bx , Bf
 
