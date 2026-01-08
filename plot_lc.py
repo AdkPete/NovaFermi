@@ -50,8 +50,9 @@ def get_size(width , fraction = 1.0):
     return fig_dim
 
 def plot_TS_search(params):
-    fname = "all_fits.csv"
+    fname = params["tsm_outdir"] + "all_fits.csv"
     if not os.path.exists(fname):
+        print ("No TS Search results found, exiting")
         return 0
     f = open(fname)
     
@@ -71,7 +72,7 @@ def plot_TS_search(params):
     plt.xlabel("Start Time (days since peak)")
     plt.ylabel("Window Width (days)")
     
-    plt.savefig("Fit_Monitor.pdf")
+    plt.savefig(params["figdir"] + "Fit_Monitor.pdf")
     plt.close()
 def plot_light_curve(params, display=False, compile_csv = None):
     '''
@@ -124,7 +125,7 @@ def plot_light_curve(params, display=False, compile_csv = None):
     plt.xlabel("Time since Peak (Days)")
     plt.ylabel("TS")
     plt.tight_layout()
-    plt.savefig("TSFig.pdf")
+    plt.savefig(params["figdir"] + "TSFig.pdf")
     if display:
         plt.show()
     plt.close()
@@ -146,10 +147,10 @@ def plot_light_curve(params, display=False, compile_csv = None):
     plt.ylabel("Flux (ph / s / cm$^{-2}$)")
     plt.tight_layout()
     if display:
-        plt.savefig("LC.pdf")
+        plt.savefig(params["figdir"] + "LC.pdf")
         plt.show()
     else:
-        plt.savefig("LC.pdf")
+        plt.savefig(params["figdir"] + "LC.pdf")
         plt.close()
 
     ncol = 1 ## Change to 2 for a two-column figure.
@@ -174,14 +175,14 @@ def plot_light_curve(params, display=False, compile_csv = None):
     plt.ylabel("Residual")
 
 
-    plt.savefig("ULS.pdf")
+    plt.savefig(params["figdir"] + "ULS.pdf")
     plt.close()
 
 def load_data(params , compile_csv = None):
     if compile_csv is None:
-        compiled_csv = params["name"] + f"_{int(params['window'])}_lcdata.csv"
+        compiled_csv = params["lc_outdir"] + params["name"] + f"_{int(params['window'])}_lcdata.csv"
         if not os.path.exists(compiled_csv):
-            print ("No data found, exiting")
+            print ("No LC data found, exiting")
             return [],[],[],[],[],[]
     Time = []
     TS = []
@@ -243,7 +244,7 @@ def TS_hist(params, compile_csv = None):
     plt.xlabel("Test Statistic")
     plt.ylabel("Number of Trials")
     plt.tight_layout()
-    plt.savefig("TS_Hist.pdf")
+    plt.savefig(params["figdir"] + "TS_Hist.pdf")
     plt.close()
     
     df = 3
@@ -260,7 +261,7 @@ def TS_hist(params, compile_csv = None):
     #plt.xlabel("Test Statistic")
     plt.ylabel("Number of Trials")
     plt.tight_layout()
-    plt.savefig("TS_Hist_wpdf.pdf")
+    plt.savefig(params["figdir"] + "TS_Hist_wpdf.pdf")
     plt.close()
     
     
@@ -277,7 +278,7 @@ def TS_hist(params, compile_csv = None):
     plt.xlabel("Test Statistic")
     plt.ylabel("Cumulative Distribution")
     plt.tight_layout()
-    plt.savefig("TS_cdf.pdf")
+    plt.savefig(params["figdir"] + "TS_cdf.pdf")
     plt.close()
     
 
@@ -308,10 +309,10 @@ def compile_data(params, output=None):
     
     '''
     if output is None:
-        output = params["name"] + f"_{int(params['window'])}_lcdata.csv"
+        output = params["lc_outdir"] + params["name"] + f"_{int(params['window'])}_lcdata.csv"
     
     
-    dir = "./"
+    dir = params["lc_outdir"] 
     Flux = []
     Unc = []
     Time = []
@@ -346,7 +347,7 @@ def compile_data(params, output=None):
     ULS = np.array(ULS)
     
     if len(METs) == 0:
-        print ("No Data Found, exiting now")
+        print ("No LC Data Found, exiting now")
         return 0
     isort = np.argsort(Time)
     out_file = open(output, "w")
@@ -366,7 +367,7 @@ def TS_Grid(params):
     Plots the results from a TS Grid search
     '''
     
-    dir = "./"
+    dir = params["grid_outdir"]
     start = []
     end = []
     TS = []
@@ -376,12 +377,12 @@ def TS_Grid(params):
     for i in os.listdir(dir):
         fname = os.path.join(dir , i)
         
-        if ".csv" not in fname:
+        if ".csv" not in i:
             continue
-        elif "grid" not in fname:
+        elif "grid" not in i:
             continue
         f = open(fname)
-        sn1 = fname.split("grid")[1]
+        sn1 = i.split("grid")[1]
         sn2 = sn1.split("_")
         start.append(int(sn2[1]))
         end.append(int(sn2[2]))
@@ -391,7 +392,10 @@ def TS_Grid(params):
             Flux.append(float(split_line[0]))
             Flux_err.append(float(split_line[1]))
             TS.append(float(split_line[2]))
-    
+    if len(TS) == 0:
+        print ("No Grid Data Found, Exiting")
+        return 0
+
     TSi = TS.index(max(TS))
     print (f"Maximum TS is {max(TS)}")
     mark1 = plt.Circle(( end[TSi], start[TSi]) , 0.5, fill=False)
@@ -401,7 +405,7 @@ def TS_Grid(params):
     plt.colorbar(label="TS")
     plt.ylabel("Start Time (days)")
     plt.xlabel("End Time (days)")
-    plt.savefig("TSGrid.pdf")
+    plt.savefig(params["figdir"] + "TSGrid.pdf")
     plt.show()
 if __name__ == "__main__":
     params = af.read_parameters(sys.argv[1])

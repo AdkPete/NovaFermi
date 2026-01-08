@@ -39,7 +39,7 @@ from BinnedAnalysis import *
 
 ### Start with some useful background / setup functions
 
-def setup_events_file(clobber=False):
+def setup_events_file(params, clobber=False):
     
     '''
     Simple function to setup files listing all data, and identifies the
@@ -58,20 +58,22 @@ def setup_events_file(clobber=False):
     '''
     event_file = "events.txt"
 
+    data_dir = params["data_path"]
+    
     if os.path.exists(event_file) and clobber:
         os.remove(event_file)
         
     if not os.path.exists(event_file):
         f = open(event_file , "w")
         output = ""
-        for i in os.listdir():
+        for i in os.listdir(data_dir):
             if "_PH" in i and ".fits" in i:
-                output += i + "\n"
+                output += data_dir + i + "\n"
         f.write(output[:-1])
         f.close()
-    for i in os.listdir():
+    for i in os.listdir(data_dir):
         if "_SC" in i and ".fits" in i:
-            scfile = i
+            scfile = data_dir + i
 
     
     infile = '@events.txt'
@@ -168,7 +170,7 @@ def read_parameters(pfile):
         if key == "nproc" or key == "N_ebin" or key == "TSPix" or key == "popsize": 
             ## Should be integer
             params[key] = int(sl[1])
-        elif key == "Niter":
+        elif key == "Niter" or key == "gridstep":
             params[key] = int(sl[1])
             
         elif len(sl[1].split("-")) == 3 & len(sl[1].split("-")) == 3:
@@ -194,6 +196,12 @@ def read_parameters(pfile):
             params[key] = MET
         elif "none" in sl[1].lower() or "N/A" in sl[1].lower():
             continue
+        
+        elif "outdir" in key or "figdir" in key:
+            directory = sl[1].strip()
+            if not os.path.exists(directory):
+                os.mkdir(directory)
+            params[key] = directory
         ## General handling of other params
 
         ## Boolean options first
@@ -212,17 +220,13 @@ def read_parameters(pfile):
                 params[key] = sl[1].strip()
     if "infile" not in params.keys() or "scfile" not in params.keys():
         ## If data is not specified, auto-detect data files.
-        infile , scfile = setup_events_file(clobber=False)
+        infile , scfile = setup_events_file(params, clobber=False)
         params["infile"] = infile
         params["scfile"] = scfile
         
     if "input_model" not in params.keys():
         params["input_model"] = params["name"] + "_input_model.xml"
         
-    if params["start"] < 10000: ## Time since peak
-        params["start"] = tpeak_to_met(params["start"], params)
-    if params["end"] < 10000: ## Time since peak
-        params["end"] = tpeak_to_met(params["end"], params)
         
     return params
 
@@ -245,7 +249,7 @@ def print_params(params):
         rows.append([key,str(params[key])])
     print (tabulate.tabulate(rows) + "\n")
 
-def gen_model(params, fheader, lock=None):
+def gen_model(params, fheader, lock=None, outdir = "./"):
     '''
     Function to create an input model file
     Note: This function will not overwrite an existing input model.
@@ -262,7 +266,7 @@ def gen_model(params, fheader, lock=None):
     
 
     dfname = params["cal_dir"] + "gll_psc_v32.xml"
-    gti = f"{params['name']}{fheader}_filtered_gti.fits"
+    gti = outdir + f"{params['name']}{fheader}_filtered_gti.fits"
     model_fname = params["input_model"]
     
     if os.path.exists(model_fname):
@@ -274,7 +278,7 @@ def gen_model(params, fheader, lock=None):
     
     input("Please edit input_model to include source models. Then, hit enter")
     
-def data_selection(params, tstart, tend, clobber, fheader, lock=None):
+def data_selection(params, tstart, tend, clobber, fheader, lock=None, outdir = "./"):
     '''
     Function to run the data selection
     Runs the gtselect and mktime FermiTools tasks to run the data selection
@@ -297,7 +301,7 @@ def data_selection(params, tstart, tend, clobber, fheader, lock=None):
     
     ##gtselect first
 
-    out_name = f'{params["name"]}{fheader}_filtered.fits'
+    out_name = outdir + f'{params["name"]}{fheader}_filtered.fits'
     my_apps.filter['evclass'] = 128
     my_apps.filter['evtype'] = 3
     my_apps.filter['ra'] = params["ra"]
@@ -317,18 +321,18 @@ def data_selection(params, tstart, tend, clobber, fheader, lock=None):
         checklocks(lock)
         my_apps.filter.run()
     
-    gtiname = f'{params["name"]}{fheader}_filtered_gti.fits'
+    gtiname = outdir + f'{params["name"]}{fheader}_filtered_gti.fits'
     my_apps.maketime['scfile'] = params["scfile"]
     my_apps.maketime['filter'] = '(DATA_QUAL>0)&&(LAT_CONFIG==1)'
     my_apps.maketime['roicut'] = 'no'
-    my_apps.maketime['evfile'] = f'{params["name"]}{fheader}_filtered.fits'
+    my_apps.maketime['evfile'] = outdir + f'{params["name"]}{fheader}_filtered.fits'
     my_apps.maketime['outfile'] = gtiname
 
     if not os.path.exists(gtiname) or clobber:
         checklocks(lock)
         my_apps.maketime.run()
 
-def lt_exp_maps(params , clobber , fheader, lock=None):
+def lt_exp_maps(params , clobber , fheader, lock=None, outdir = "./"):
     '''
     Generates livetime cubes and exposure maps for binned likelihood
     Fermi analysis
@@ -345,9 +349,9 @@ def lt_exp_maps(params , clobber , fheader, lock=None):
     '''
     
     ## Compute the LiveTime Cube
-    ltcube = f'{params["name"]}{fheader}_ltCube.fits'
+    ltcube = outdir + f'{params["name"]}{fheader}_ltCube.fits'
 
-    my_apps.expCube['evfile'] = f'{params["name"]}{fheader}_filtered_gti.fits'
+    my_apps.expCube['evfile'] = outdir + f'{params["name"]}{fheader}_filtered_gti.fits'
     my_apps.expCube['scfile'] = params["scfile"]
     my_apps.expCube['outfile'] = ltcube
     my_apps.expCube['zmax'] = 90
@@ -360,7 +364,7 @@ def lt_exp_maps(params , clobber , fheader, lock=None):
 
 
     ## Build Exposure Map
-    expmap = f'{params["name"]}{fheader}_BinnedExpMap.fits'
+    expmap = outdir + f'{params["name"]}{fheader}_BinnedExpMap.fits'
 
     expCube2= GtApp('gtexpcube2','Likelihood')
 
@@ -386,7 +390,7 @@ def lt_exp_maps(params , clobber , fheader, lock=None):
         checklocks(lock)
         expCube2.run()
         
-def gen_srcmap(params, clobber, fheader, lock=None):
+def gen_srcmap(params, clobber, fheader, lock=None, outdir = "./"):
     '''
     Function to generate source maps for binned likelihood analysis
     
@@ -400,11 +404,11 @@ def gen_srcmap(params, clobber, fheader, lock=None):
     ________
     None
     '''
-    src_name = f'{params["name"]}{fheader}_srcmap.fits'
-    my_apps.srcMaps['expcube'] = f'{params["name"]}{fheader}_ltcube.fits'
-    my_apps.srcMaps['cmap'] = f'{params["name"]}{fheader}_filtered_ccube.fits'
+    src_name = outdir + f'{params["name"]}{fheader}_srcmap.fits'
+    my_apps.srcMaps['expcube'] = outdir + f'{params["name"]}{fheader}_ltcube.fits'
+    my_apps.srcMaps['cmap'] = outdir + f'{params["name"]}{fheader}_filtered_ccube.fits'
     my_apps.srcMaps['srcmdl'] = params["input_model"]
-    my_apps.srcMaps['bexpmap'] = f'{params["name"]}{fheader}_BinnedExpMap.fits'
+    my_apps.srcMaps['bexpmap'] = outdir + f'{params["name"]}{fheader}_BinnedExpMap.fits'
     my_apps.srcMaps['outfile'] = src_name
     my_apps.srcMaps['irfs'] = 'P8R3_SOURCE_V3'
     my_apps.srcMaps['evtype'] = '3'
@@ -413,7 +417,7 @@ def gen_srcmap(params, clobber, fheader, lock=None):
         checklocks(lock)
         my_apps.srcMaps.run()
         
-def bin_data(params, clobber, fheader, lock=None):
+def bin_data(params, clobber, fheader, lock=None, outdir = "./"):
     '''
     Function to generate counts maps / cubes
     
@@ -428,8 +432,8 @@ def bin_data(params, clobber, fheader, lock=None):
     None
     '''
     
-    my_apps.evtbin['evfile'] = f'{params["name"]}{fheader}_filtered_gti.fits'
-    my_apps.evtbin['outfile'] = f'{params["name"]}{fheader}_filtered_cmap.fits'
+    my_apps.evtbin['evfile'] = outdir + f'{params["name"]}{fheader}_filtered_gti.fits'
+    my_apps.evtbin['outfile'] = outdir + f'{params["name"]}{fheader}_filtered_cmap.fits'
     my_apps.evtbin['scfile'] = params["scfile"]
     my_apps.evtbin['algorithm'] = 'CMAP'
     my_apps.evtbin['nxpix'] = int(params["roi"] * 2/ params["pix_sc"])
@@ -445,7 +449,7 @@ def bin_data(params, clobber, fheader, lock=None):
     my_apps.evtbin['emax'] = params["emax"]
     my_apps.evtbin['enumbins'] = params["N_ebin"]
 
-    if not os.path.exists(f'{params["name"]}{fheader}_filtered_cmap.fits') or clobber:
+    if not os.path.exists(outdir + f'{params["name"]}{fheader}_filtered_cmap.fits') or clobber:
         checklocks(lock)
         my_apps.evtbin.run()
 
@@ -453,8 +457,8 @@ def bin_data(params, clobber, fheader, lock=None):
     ## Make CCUBE while we are at it:
 
     npix = int(( np.sqrt(2) * params["roi"] / params["pix_sc"] ))
-    my_apps.evtbin['evfile'] = f'{params["name"]}{fheader}_filtered_gti.fits'
-    my_apps.evtbin['outfile'] = f'{params["name"]}{fheader}_filtered_ccube.fits'
+    my_apps.evtbin['evfile'] = outdir + f'{params["name"]}{fheader}_filtered_gti.fits'
+    my_apps.evtbin['outfile'] = outdir + f'{params["name"]}{fheader}_filtered_ccube.fits'
     my_apps.evtbin['scfile'] = params["scfile"]
     my_apps.evtbin['algorithm'] = 'CCUBE'
     my_apps.evtbin['nxpix'] = npix
@@ -470,11 +474,11 @@ def bin_data(params, clobber, fheader, lock=None):
     my_apps.evtbin['emax'] = params["emax"]
     my_apps.evtbin['enumbins'] = params["N_ebin"]
 
-    if not os.path.exists(f'{params["name"]}{fheader}_filtered_ccube.fits') or clobber:
+    if not os.path.exists(outdir + f'{params["name"]}{fheader}_filtered_ccube.fits') or clobber:
         checklocks(lock)
         my_apps.evtbin.run()
 
-def fit_model(params, fheader, get_like, inmod = "No" , opt = 'NewMINUIT', silent=False, lock=None):
+def fit_model(params, fheader, get_like, inmod = "No" , opt = 'NewMINUIT', silent=False, lock=None, outdir = "./"):
     '''
     Function to run the model fitting steps
     This version is the recommended fitting process
@@ -496,12 +500,12 @@ def fit_model(params, fheader, get_like, inmod = "No" , opt = 'NewMINUIT', silen
     if inmod == "No":
         inmod =params["input_model"]
         
-    src_name = f'{params["name"]}{fheader}_srcmap.fits'
+    src_name = outdir + f'{params["name"]}{fheader}_srcmap.fits'
     drmnfb_comm = f'gtlike statistic=BINNED cmap={src_name} '
-    drmnfb_comm += f'bexpmap={params["name"]}{fheader}_BinnedExpMap.fits '
-    drmnfb_comm += f'expcube={params["name"]}{fheader}_ltCube.fits '
+    drmnfb_comm += f'bexpmap={outdir}{params["name"]}{fheader}_BinnedExpMap.fits '
+    drmnfb_comm += f'expcube={outdir}{params["name"]}{fheader}_ltCube.fits '
     drmnfb_comm += f'srcmdl={inmod} irfs=CALDB'
-    drmnfb_comm += f' optimizer=DRMNFB sfile=temp{fheader}.xml '
+    drmnfb_comm += f' optimizer=DRMNFB sfile={outdir}temp{fheader}.xml '
     
     if silent:
         drmnfb_comm += ">/dev/null "
@@ -509,9 +513,9 @@ def fit_model(params, fheader, get_like, inmod = "No" , opt = 'NewMINUIT', silen
     subprocess.run(drmnfb_comm,shell=True)
     
     obs = BinnedObs(srcMaps=src_name,
-            binnedExpMap=f'{params["name"]}{fheader}_BinnedExpMap.fits',
-            expCube=f'{params["name"]}{fheader}_ltcube.fits',irfs='P8R3_SOURCE_V3')
-    like = BinnedAnalysis(obs,f'temp{fheader}.xml',optimizer=opt)
+            binnedExpMap=f'{outdir}{params["name"]}{fheader}_BinnedExpMap.fits',
+            expCube=f'{outdir}{params["name"]}{fheader}_ltcube.fits',irfs='P8R3_SOURCE_V3')
+    like = BinnedAnalysis(obs,f'{outdir}temp{fheader}.xml',optimizer=opt)
     likeobj=pyLike.NewMinuit(like.logLike)
 
     try:
@@ -533,7 +537,7 @@ def fit_model(params, fheader, get_like, inmod = "No" , opt = 'NewMINUIT', silen
     if get_like:
         
         return res , like.flux(params["name"] , emin = params["emin"]) , like.model[params["name"]].funcs["Spectrum"]["Prefactor"]
-    like.logLike.writeXml(f'fit_model{fheader}.xml')
+    like.logLike.writeXml(f'{outdir}fit_model{fheader}.xml')
     Nova_flux = like.flux(params["name"] , emin = params["emin"], emax=params["emax"])
     Nova_flux_err = like.fluxError(params["name"], emin=params["emin"], emax=params["emax"])
     
@@ -556,7 +560,7 @@ def checklocks(lock):
         with lock:
             time.sleep(1)
             
-def binned_likelihood(params, tstart , tend , clobber = False, fheader = "", silent=False, lock = None):
+def binned_likelihood(params, tstart , tend , clobber = False, fheader = "", silent=False, lock = None, outdir = "./"):
     '''
     Function to run the full binned likelihood analysis pipeline
     Will run this once, and produces a TS value, and a flux
@@ -582,7 +586,7 @@ def binned_likelihood(params, tstart , tend , clobber = False, fheader = "", sil
         rf.write("Beginning Data Selection\n")
         rf.close()
     
-    data_selection(params, tstart, tend, clobber , fheader, lock)
+    data_selection(params, tstart, tend, clobber , fheader, lock, outdir)
     
 
     if params["runlog"]:
@@ -590,7 +594,7 @@ def binned_likelihood(params, tstart , tend , clobber = False, fheader = "", sil
         rf.write("Beginning Data Binning\n")
         rf.close()
         
-    bin_data(params , clobber , fheader, lock)
+    bin_data(params , clobber , fheader, lock, outdir)
     
     if params["runlog"]:
         rf = open(runlogname , "a")
@@ -598,35 +602,35 @@ def binned_likelihood(params, tstart , tend , clobber = False, fheader = "", sil
         rf.close()
     
     
-    lt_exp_maps(params , clobber , fheader, lock)
+    lt_exp_maps(params , clobber , fheader, lock, outdir)
     
     if params["runlog"]:
         rf = open(runlogname , "a")
         rf.write("Getting Source Model\n")
         rf.close()
         
-    gen_model(params, fheader)
+    gen_model(params, fheader, outdir)
     
     if params["runlog"]:
         rf = open(runlogname , "a")
         rf.write("Generating Source Map\n")
         rf.close()
     
-    gen_srcmap(params, clobber, fheader, lock)
+    gen_srcmap(params, clobber, fheader, lock, outdir)
     
     if params["runlog"]:
         rf = open(runlogname , "a")
         rf.write("Fitting Source Model\n")
         rf.close()
         
-    Flux , error , TS = fit_model(params , fheader, False, silent=silent,lock=lock)
+    Flux , error , TS = fit_model(params , fheader, False, silent=silent,lock=lock, outdir = outdir)
     
     if params["runlog"]:
         rf = open(runlogname , "a")
         rf.write("Building model and residual maps\n")
         rf.close()
         
-    generate_residuals(params, clobber, fheader, lock)
+    generate_residuals(params, clobber, fheader, lock, outdir)
     
     if params["runlog"]:
         rf = open(runlogname , "a")
@@ -661,33 +665,34 @@ def opt_func(x):
         params = read_parameters(sys.argv[1])
         tstart = tpeak_to_met(x[0] , params)
         tend = tpeak_to_met(x[0] + x[1] , params)
+        tsm_dir = params["tsm_outdir"]
         try:
             Flux , error , TS = binned_likelihood(params, tstart, tend, False,
-                                    fheader, silent = True)
+                                    fheader, silent = True, outdir = tsm_dir)
         except:
             try:
                 Flux , error , TS = binned_likelihood(params, tstart, tend, False,
-                                   fheader, silent = True)
+                                   fheader, silent = True, outdir = tsm_dir)
             except Exception as e:
                 ## No luck, we return inf. and will skip this iteration.
                 ## Benefit of a Monte-Carlo optimizer, we can just try a new solution.
                 ## However, we will produce an error log to track it down later.
-                err_log = f"elog{fheader}.txt"
+                err_log = f"{tsm_dir}elog{fheader}.txt"
                 el = open(err_log , "w")
                 el.write(f"Binned Likelihood crashed on data between {x[0]} and {x[0] + x[1]}")
                 el.write("\n\n\n")
                 el.write(str(e))
                 el.close()
                 return np.inf
-    cleanup(params , fheader = fheader, all_files = True)
-    lf = open(logfile , "a")
+    cleanup(params , fheader = fheader, all_files = True, outdir = tsm_dir)
+    lf = open(tsm_dir + logfile , "a")
     lf.write(str(x[0]) + "," + str(x[1]) + "," + str(TS) + "\n")
     lf.close()
     print (f"Final Results are: TS = {TS} with data from {x[0]} to {x[0] + x[1]}")
     return -1 * TS
 
 
-def FermiTools_UpperLim(params, fheader):
+def FermiTools_UpperLim(params, fheader, outdir = "./"):
 
     '''
     For comparison, here is the FermiTools Upper Limit code
@@ -696,15 +701,15 @@ def FermiTools_UpperLim(params, fheader):
     '''
     
     
-    if not os.path.exists(f'upper_lim_model{fheader}.xml'):
+    if not os.path.exists(f'{outdir}upper_lim_model{fheader}.xml'):
         mod = setup_pl(params,1.0,-2.1 , free = True)
-        gen_ul_xml(f"fit_model{fheader}.xml", f'upper_lim_model{fheader}.xml',
+        gen_ul_xml(f"{outdir}fit_model{fheader}.xml", f'{outdir}upper_lim_model{fheader}.xml',
                 params["name"], mod)
-    obs = BinnedObs(srcMaps=f"{params['name']}{fheader}_srcmap.fits",
-                binnedExpMap=f'{params["name"]}{fheader}_BinnedExpMap.fits',
-                expCube=f'{params["name"]}{fheader}_ltcube.fits',
+    obs = BinnedObs(srcMaps=f"{outdir}{params['name']}{fheader}_srcmap.fits",
+                binnedExpMap=f'{outdir}{params["name"]}{fheader}_BinnedExpMap.fits',
+                expCube=f'{outdir}{params["name"]}{fheader}_ltcube.fits',
                 irfs='P8R3_SOURCE_V3')
-    like = BinnedAnalysis(obs,f'upper_lim_model{fheader}.xml')
+    like = BinnedAnalysis(obs,f'{outdir}upper_lim_model{fheader}.xml')
     like.fit(verbosity=3)
     ul = UpperLimits(like)
     try:
@@ -737,30 +742,30 @@ def likelihood_wrapper(run_pars):
         clobber : boolean : If true, overwrite existing files
         fheader : string : Unique ID added to avoid filename conflicts
         log : filename to save data to
-        cleanup : boolean : If true, delete large intermediate files
-        
+        lock : lock object : Lock used to prevent file conflicts
+        outdir : string : Location to store all produced files
     Returns
     ________
     Flux , Flux_Error , TS
     '''
 
     
-    log_file = run_pars[4] + run_pars[5] + ".csv"
+    log_file = run_pars[5] + run_pars[4] +  ".csv"
     
     
     try:
-        F , unc , ts = binned_likelihood(*run_pars[0:5], lock = run_pars[6])
+        F , unc , ts = binned_likelihood(*run_pars[0:5], lock = run_pars[6], outdir = run_pars[7])
     except Exception as e:
-        err_l = "err_log_1_" + run_pars[4] + ".log"
+        err_l = run_pars[7] + "err_log_1_" + run_pars[4] + ".log"
         outlog = open(err_l , "w")
         for par in run_pars:
             outlog.write(str(par) + "\n")
         outlog.write(traceback.format_exc())
         outlog.close()
         try:
-            F , unc , ts = binned_likelihood(*run_pars[0:5], lock = run_pars[6])
+            F , unc , ts = binned_likelihood(*run_pars[0:5], lock = run_pars[6], outdir = run_pars[7])
         except:
-            err_l = "err_log_1_" + run_pars[4] + ".log"
+            err_l = run_pars[7] + "err_log_1_" + run_pars[4] + ".log"
             outlog = open(err_l , "w")
             for par in run_pars:
                 outlog.write(str(par) + "\n")
@@ -783,22 +788,22 @@ def likelihood_wrapper(run_pars):
     F2 = -99
     if ts < run_pars[0]["ts_lim"] and run_pars[0]["up_lim_lc"]:
         try:
-            F , Flow , Fhigh , DeltaLogL = compute_upper_lim(run_pars[0] , run_pars[4])
+            F , Flow , Fhigh , DeltaLogL = compute_upper_lim(run_pars[0] , run_pars[4], outdir = run_pars[7])
             
             unc = -1
             try:
             
-                F2 = FermiTools_UpperLim(run_pars[0] , run_pars[4])
+                F2 = FermiTools_UpperLim(run_pars[0] , run_pars[4], outdir = run_pars[7])
             except:
                 F2 = -1
         except:
             try:
-                F = FermiTools_UpperLim(run_pars[0] , run_pars[4])
+                F = FermiTools_UpperLim(run_pars[0] , run_pars[4], outdir = run_pars[7])
                 F2 = -99
             except:
                 return [0,0,0,0]
             
-    runlogname = "runlog" + run_pars[4] + ".log"
+    runlogname = run_pars[7] + "runlog" + run_pars[4] + ".log"
     if run_pars[0]["runlog"]:
         rf = open(runlogname , "a")
         rf.write("Run Complete; saving to a file\n")
@@ -811,8 +816,8 @@ def likelihood_wrapper(run_pars):
         f.write("," + str(F2))
         f.close()
         
-    if run_pars[-1]:
-        cleanup(run_pars[0] , run_pars[4])
+    if run_pars[0]["cleanlc"]:
+        cleanup(run_pars[0] , run_pars[4], run_pars[7])
     return [F , unc , ts , tmid]
 
 def light_curve_singleproc(params, clobber, log = "mp_log"):
@@ -834,16 +839,12 @@ def light_curve_singleproc(params, clobber, log = "mp_log"):
     None
     '''
     
-    if params["lc_start"] == -1:
-        start = params["start"]
-    else:
-        start = tpeak_to_met(params["lc_start"], params)
-    
-    if params["lc_end"] == -1:
-        end = params["end"]
-    else:
-        end = tpeak_to_met(params["lc_end"], params)
-    
+
+    ## Get start and end times for LC.
+    start = tpeak_to_met(params["lc_start"], params)
+    end = tpeak_to_met(params["lc_end"], params)
+    lcdir = params["lc_outdir"]
+    log = lcdir + log
     ## Start by setting up our parameter array
     param_array = []
     
@@ -860,9 +861,9 @@ def light_curve_singleproc(params, clobber, log = "mp_log"):
         fheader = f"_{params['window']}_{params['lcstep']}_{tpeak_start}_st{id}"
         st = t - window_half_seconds
         et = t + window_half_seconds
-        param_row = [params, st, et, clobber, fheader, log, None]
+        param_row = [params, st, et, clobber, fheader, log, None, lcdir]
         param_row.append( params["cleanlc"])
-        log_file = param_row[4] + param_row[5] + ".csv"
+        log_file = param_row[7] + param_row[4] + param_row[5] + ".csv"
         if not os.path.exists(log_file):
             
             param_array.append(param_row)
@@ -902,7 +903,7 @@ def light_curve_singleproc(params, clobber, log = "mp_log"):
     plt.scatter(tpeak[lim] , Flux[lim] , color = "orange" , marker = "v")
     plt.xlabel("Time since peak (days)")
     plt.ylabel("Flux (ph / s / cm$^{-2}$)")
-    plt.savefig("LC.pdf")
+    plt.savefig(params["figdir"] + "LC.pdf")
     plt.close()
     
     return results
@@ -923,17 +924,11 @@ def light_curve_multiproc(params , clobber, log="mp_log"):
     ________
     None
     '''
-    
-    if params["lc_start"] == -1:
-        start = params["start"]
-    else:
-        start = tpeak_to_met(params["lc_start"], params)
-    
-    if params["lc_end"] == -1:
-        end = params["end"]
-    else:
-        end = tpeak_to_met(params["lc_end"], params)
-    
+ 
+    start = tpeak_to_met(params["lc_start"], params)
+    end = tpeak_to_met(params["lc_end"], params)
+    lcdir = params["lc_outdir"]
+    log = lcdir + log
     ## Start by setting up our parameter array
     param_array = []
     
@@ -950,9 +945,9 @@ def light_curve_multiproc(params , clobber, log="mp_log"):
             fheader = f"_{params['window']}_{params['lcstep']}_{tpeak_start}_st{id}"
             st = t - window_half_seconds
             et = t + window_half_seconds
-            param_row = [params, st, et, clobber, fheader, log, lock]
+            param_row = [params, st, et, clobber, fheader, log, lock, lcdir]
             param_row.append( params["cleanlc"])
-            log_file = param_row[4] + param_row[5] + ".csv"
+            log_file = param_row[7] + param_row[4] + param_row[5] + ".csv"
             if not os.path.exists(log_file) or clobber:
                 
                 param_array.append(param_row)
@@ -997,7 +992,7 @@ def light_curve_multiproc(params , clobber, log="mp_log"):
     plt.scatter(tpeak[lim] , Flux[lim] , color = "orange" , marker = "v")
     plt.xlabel("Time since peak (days)")
     plt.ylabel("Flux (ph / s / cm$^{-2}$)")
-    plt.savefig("LC.pdf")
+    plt.savefig(params["figdir"] + "LC.pdf")
     plt.close()
     
     return results
@@ -1073,7 +1068,7 @@ def setup_pl(params,flux,index , free = False):
     model += f'</source>\n'
     return model
 
-def compute_upper_lim(params, fheader):
+def compute_upper_lim(params, fheader, outdir = "./"):
     '''
     Function to compute the upper limit on the flux for a source
     This is an implementation of the profile-likelihood method, makes
@@ -1104,7 +1099,7 @@ def compute_upper_lim(params, fheader):
     '''
 
     opt = 'NewMINUIT'
-    runlogname = "runlog" + fheader + ".log"
+    runlogname = outdir + "runlog" + fheader + ".log"
     if params["runlog"]:
         rf = open(runlogname , "a")
         rf.write("Initiating Upper Limit Calculation\n")
@@ -1118,14 +1113,14 @@ def compute_upper_lim(params, fheader):
         
     ## Setup model, and find best fit parameters first
     index = -2.1
-    src_name = f'{params["name"]}{fheader}_srcmap.fits'
+    src_name = f'{outdir}{params["name"]}{fheader}_srcmap.fits'
     mod = setup_pl(params,1.0,index, free=True)
-    gen_ul_xml(f'fit_model{fheader}.xml',f"ul{fheader}.xml",params["name"],mod)
+    gen_ul_xml(f'{outdir}fit_model{fheader}.xml',f"{outdir}ul{fheader}.xml",params["name"],mod)
     
     obs = BinnedObs(srcMaps=src_name,
-        binnedExpMap=f'{params["name"]}{fheader}_BinnedExpMap.fits',
-        expCube=f'{params["name"]}{fheader}_ltcube.fits',irfs='P8R3_SOURCE_V3')
-    like = BinnedAnalysis(obs,f'ul{fheader}.xml',optimizer=opt)
+        binnedExpMap=f'{outdir}{params["name"]}{fheader}_BinnedExpMap.fits',
+        expCube=f'{outdir}{params["name"]}{fheader}_ltcube.fits',irfs='P8R3_SOURCE_V3')
+    like = BinnedAnalysis(obs,f'{outdir}ul{fheader}.xml',optimizer=opt)
     likeobj=pyLike.NewMinuit(like.logLike)
 
     
@@ -1173,12 +1168,6 @@ def compute_upper_lim(params, fheader):
         Flux = like.flux(params["name"] , emin = params["emin"], emax = params["emax"])
         
         return res , Flux
-    def old_L(F):
-                
-        mod = setup_pl(params,F,index)
-        gen_ul_xml(f'fit_model{fheader}.xml',f"ul{fheader}.xml",params["name"],mod)
-        logL , Flux , fpar = fit_model(params , fheader, True, inmod=f"ul{fheader}.xml")
-        return logL , Flux
     ## Setup starting point for root finding
 
     Like_cut = 2.71 / 2.0
@@ -1256,7 +1245,7 @@ def compute_upper_lim(params, fheader):
 
     return Flux_final , Flux_low , Flux_high , l_mid - L0
 
-def cleanup(params , fheader, all_files = False):
+def cleanup(params , fheader, all_files = False, outdir = "./"):
     
     '''
     Short function to remove files produced during a given likelihood
@@ -1278,23 +1267,23 @@ def cleanup(params , fheader, all_files = False):
     '''
     
     
-    for i in os.listdir():
+    for i in os.listdir(outdir):
         
         if (params["name"] not in i and "temp" not in i) or fheader not in i:
             continue
         
         if "srcmap" in i: ## Source Maps
-            os.remove(i)
+            os.remove(outdir + i)
         elif "BinnedExpMap" in i or "_ltCube" in i:
-            os.remove(i)
+            os.remove(outdir + i)
         elif "_filtered" in i:
-            os.remove(i)
+            os.remove(outdir + i)
         elif ".fits" in i and all_files:
-            os.remove(i)
+            os.remove(outdir + i)
         elif ".xml" in i and all_files:
-            os.remove(i)
+            os.remove(outdir + i)
         
-def setup_tsmap_xml(params, input_file):
+def setup_tsmap_xml(params, input_file, outdir):
     '''
     Function to build a xml input file suitable for computing
     background TSMaps. Basically just takes an xml file and strips
@@ -1312,8 +1301,8 @@ def setup_tsmap_xml(params, input_file):
     None
     '''
 
-    rf = open(f"{params['name']}_fit_TSMap.xml" , "w")
-    backf = open(f"{params['name']}_fit_backgroundTSMap.xml" , "w")
+    rf = open(f"{outdir}{params['name']}_fit_TSMap.xml" , "w")
+    backf = open(f"{outdir}{params['name']}_fit_backgroundTSMap.xml" , "w")
     
     insource = False
     infil = open(input_file)
@@ -1347,18 +1336,18 @@ def TS_Map(params, input_file, clobber):
     None
     '''
 
-    
-    setup_tsmap_xml(params , input_file)
+    outdir =params["av_outdir"]
+    setup_tsmap_xml(params , input_file, outdir)
     my_apps.TsMap['statistic'] = "BINNED"
-    my_apps.TsMap['cmap'] = f'{params["name"]}_filtered_ccube.fits'
+    my_apps.TsMap['cmap'] = f'{outdir}{params["name"]}_filtered_ccube.fits'
     my_apps.TsMap['scfile'] = params["scfile"]
-    my_apps.TsMap['evfile'] = f"{params['name']}_filtered_gti.fits"
-    my_apps.TsMap['bexpmap'] = f"{params['name']}_BinnedExpMap.fits"
-    my_apps.TsMap['expcube'] = f"{params['name']}_ltCube.fits"
-    my_apps.TsMap['srcmdl'] = f"{params['name']}_fit_TSMap.xml"
+    my_apps.TsMap['evfile'] = f"{outdir}{params['name']}_filtered_gti.fits"
+    my_apps.TsMap['bexpmap'] = f"{outdir}{params['name']}_BinnedExpMap.fits"
+    my_apps.TsMap['expcube'] = f"{outdir}{params['name']}_ltCube.fits"
+    my_apps.TsMap['srcmdl'] = f"{outdir}{params['name']}_fit_TSMap.xml"
     my_apps.TsMap['irfs'] = "P8R3_SOURCE_V3"
     my_apps.TsMap['optimizer'] = "NEWMINUIT"
-    my_apps.TsMap['outfile'] = f"{params['name']}_TSmap_resid.fits"
+    my_apps.TsMap['outfile'] = f"{outdir}{params['name']}_TSmap_resid.fits"
     my_apps.TsMap['nxpix'] = params["TSPix"]
     my_apps.TsMap['nypix'] = params["TSPix"]
     my_apps.TsMap['binsz'] = params["TSscale"]
@@ -1366,19 +1355,19 @@ def TS_Map(params, input_file, clobber):
     my_apps.TsMap['xref'] = params["ra"]
     my_apps.TsMap['yref'] = params["dec"]
     my_apps.TsMap['proj'] = 'AIT'
-    if not os.path.exists(f"{params['name']}_TSmap_resid.fits") or clobber:
+    if not os.path.exists(f"{outdir}{params['name']}_TSmap_resid.fits") or clobber:
         my_apps.TsMap.run()
 
     my_apps.TsMap['statistic'] = "BINNED"
-    my_apps.TsMap['cmap'] = f'{params["name"]}_filtered_ccube.fits'
+    my_apps.TsMap['cmap'] = f'{outdir}{params["name"]}_filtered_ccube.fits'
     my_apps.TsMap['scfile'] = params["scfile"]
-    my_apps.TsMap['evfile'] = f"{params['name']}_filtered_gti.fits"
-    my_apps.TsMap['bexpmap'] = f"{params['name']}_BinnedExpMap.fits"
-    my_apps.TsMap['expcube'] = f"{params['name']}_ltCube.fits"
-    my_apps.TsMap['srcmdl'] = f"{params['name']}_fit_backgroundTSMap.xml"
+    my_apps.TsMap['evfile'] = f"{outdir}{params['name']}_filtered_gti.fits"
+    my_apps.TsMap['bexpmap'] = f"{outdir}{params['name']}_BinnedExpMap.fits"
+    my_apps.TsMap['expcube'] = f"{outdir}{params['name']}_ltCube.fits"
+    my_apps.TsMap['srcmdl'] = f"{outdir}{params['name']}_fit_backgroundTSMap.xml"
     my_apps.TsMap['irfs'] = "P8R3_SOURCE_V3"
     my_apps.TsMap['optimizer'] = "NEWMINUIT"
-    my_apps.TsMap['outfile'] = f"{params['name']}_TSmap_background_resid.fits"
+    my_apps.TsMap['outfile'] = f"{outdir}{params['name']}_TSmap_background_resid.fits"
     my_apps.TsMap['nxpix'] = params['TSPix']
     my_apps.TsMap['nypix'] = params['TSPix']
     my_apps.TsMap['binsz'] = params["TSscale"]
@@ -1386,11 +1375,11 @@ def TS_Map(params, input_file, clobber):
     my_apps.TsMap['xref'] = params["ra"]
     my_apps.TsMap['yref'] = params["dec"]
     my_apps.TsMap['proj'] = 'STG'
-    if not os.path.exists(f"{params['name']}_TSmap_background_resid.fits") or clobber:
+    if not os.path.exists(f"{outdir}{params['name']}_TSmap_background_resid.fits") or clobber:
         my_apps.TsMap.run()
         
 
-def generate_residuals(params, clobber, fheader, lock=None):
+def generate_residuals(params, clobber, fheader, lock=None,outdir = "./"):
     '''
     Function to create residuals between the counts map and the model
     map. Simply generates a model map with the FermiTools, then takes
@@ -1413,21 +1402,21 @@ def generate_residuals(params, clobber, fheader, lock=None):
     ## but is not elegant.
 
     mmc = "gtmodel "
-    mmc += f"srcmaps={params['name']}{fheader}_srcmap.fits "
-    mmc += f"srcmdl=fit_model{fheader}.xml "
-    mmc += f"outfile={params['name']}_Model{fheader}.fits "
+    mmc += f"srcmaps={outdir}{params['name']}{fheader}_srcmap.fits "
+    mmc += f"srcmdl={outdir}fit_model{fheader}.xml "
+    mmc += f"outfile={outdir}{params['name']}_Model{fheader}.fits "
     mmc += "irfs=CALDB "
-    mmc += f"expcube={params['name']}{fheader}_ltcube.fits "
-    mmc += f"bexpmap={params['name']}{fheader}_BinnedExpMap.fits"
+    mmc += f"expcube={outdir}{params['name']}{fheader}_ltcube.fits "
+    mmc += f"bexpmap={outdir}{params['name']}{fheader}_BinnedExpMap.fits"
     print (mmc)
-    if not os.path.exists(f"{params['name']}_Model{fheader}.fits") or clobber:
+    if not os.path.exists(f"{outdir}{params['name']}_Model{fheader}.fits") or clobber:
         checklocks(lock)
         subprocess.run(mmc,shell=True)
     
     ## Generate cmap for residuals:
-    cmap_name = f'{params["name"]}{fheader}_filtered_small_cmap.fits'
+    cmap_name = f'{outdir}{params["name"]}{fheader}_filtered_small_cmap.fits'
     npix = int(( np.sqrt(2) * params["roi"] / params["pix_sc"] ))
-    my_apps.evtbin['evfile'] = f'{params["name"]}{fheader}_filtered_gti.fits'
+    my_apps.evtbin['evfile'] = f'{outdir}{params["name"]}{fheader}_filtered_gti.fits'
     my_apps.evtbin['outfile'] = cmap_name
     my_apps.evtbin['scfile'] = params["scfile"]
     my_apps.evtbin['algorithm'] = 'CMAP'
@@ -1449,13 +1438,13 @@ def generate_residuals(params, clobber, fheader, lock=None):
     
     ##Finally, generate the actual residuals
 
-    model_hdu = fits.open(f"{params['name']}_Model{fheader}.fits")
+    model_hdu = fits.open(f"{outdir}{params['name']}_Model{fheader}.fits")
     cmap_hdu = fits.open(cmap_name)
     
 
     plt.imshow(cmap_hdu[0].data[::-1] - model_hdu[0].data[::-1], cmap = "seismic")
     plt.colorbar(label="Residual (Data - Model)")
-    plt.savefig(f"Residual_{fheader}.pdf")
+    plt.savefig(f"{outdir}Residual_{fheader}.pdf")
     plt.close()
     
 def find_max_TS(params):
@@ -1501,7 +1490,7 @@ def find_max_TS(params):
 def TS_Grid(params , starts , ends):
     ## Start by setting up our parameter array
     param_array = []
-
+    grid_dir = params["grid_outdir"]
 
     with mp.Manager() as manager:
         lock = manager.Lock()
@@ -1518,15 +1507,15 @@ def TS_Grid(params , starts , ends):
                 st = tpeak_to_met(start, params)
                 et = tpeak_to_met(end, params)
                 
-                param_row = [params, st, et, False, fheader, "gridlog", lock]
-                rlog = param_row[4] + param_row[5] + ".csv"
+                param_row = [params, st, et, False, fheader, "gridlog", lock, grid_dir]
+                rlog = param_row[7] + param_row[4] + param_row[5] + ".csv"
+                print (rlog)
                 if not os.path.exists(rlog):
                     param_array.append(param_row)
         ## maxtasksperchild = 1 is designed to resolve a memory usage problem
         ## Probably mildly inneficient, but better than consuming many GB of
         ## RAM per process.
         print (len(param_array))
-        
         
         results = []
         with mp.Pool(processes=params["nproc"], maxtasksperchild=1) as p:
@@ -1549,19 +1538,15 @@ if __name__ == "__main__":
     ##Average Run First
     if params["gen_av"]:
         
-        if params["avstart"] != -1:
-            start_time = tpeak_to_met(params["avstart"] , params)
-        else:
-            start_time = params["start"]
-            
-        if params["avend"] != -1:
-            end_time = tpeak_to_met(params["avend"] , params)
-        else:
-            end_time = params["end"]
+
+        start_time = tpeak_to_met(params["avstart"] , params)
+        end_time = tpeak_to_met(params["avend"] , params)
+        av_dir = params["av_outdir"]
+        
         print ("Beginning Likelihood Calculations")
         
         start = time.time()
-        res = binned_likelihood(params, start_time, end_time, False)
+        res = binned_likelihood(params, start_time, end_time, False, outdir = av_dir)
         end = time.time()
         
         print (f"Likelihood calculation finished; runtime is {(end-start)/60.} m")
@@ -1569,11 +1554,11 @@ if __name__ == "__main__":
         F , F_err , TS = res
         if TS < params["av_ts_lim"] and params["up_lim_av"]:
             start = time.time()
-            Flux = compute_upper_lim(params , "")[0]
+            Flux = compute_upper_lim(params , "", outdir = av_dir)[0]
             end = time.time()
             s2 = time.time()
             try:
-                Flux2 = FermiTools_UpperLim(params, "")
+                Flux2 = FermiTools_UpperLim(params, "", outdir = av_dir)
             except:
                 Flux2 = -99
             e2 = time.time()
@@ -1582,9 +1567,11 @@ if __name__ == "__main__":
         print ("Model TS value is" , TS)
         print ("Model Flux is " , F)
         params["input_model"] = "fit_model.xml"
+        
+
     ## Compute TS Maps
     if params["gen_ts"]:
-        TS_Map(params, "fit_model.xml", False)
+        TS_Map(params, params["av_outdir"] + "fit_model.xml", False)
     
         
     ## Build a light curve
@@ -1598,7 +1585,8 @@ if __name__ == "__main__":
         print (f"Total light curve runtime was {(end-start)/60} minues")
         
     if params["gen_grid"]:
-        starts = np.arange(-10 , 10 , 1)
-        ends = np.arange(1 , 35)
+        
+        starts = np.arange(params["min_start"] , params["max_start"] , params["gridstep"])
+        ends = np.arange(params["min_end"] , params["max_end"] , params["gridstep"])
         
         TS_Grid(params, starts , ends)
