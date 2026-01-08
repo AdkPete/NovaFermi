@@ -30,6 +30,7 @@ print ("These files include:")
 for ft in ftypes.keys():
     print (f"{ftypes[ft]} {ft} Files")
 
+print ("\n\n")
 check1 = input("Do you want to proceed? (Y/N) --> ")
 
 if check1.lower() != "y":
