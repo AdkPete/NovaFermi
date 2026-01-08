@@ -39,6 +39,17 @@ ts_lim		4	## TS value below which we compute upper limits
 lc_start	-1	## Start time for light curve. -1 uses start time above
 lc_end		-1	## End time for light curve. -1 uses start time above
 
+
+## TS Search Parameters
+
+popsize		20	## Popsize for optimizer. Will start with this many random solutions.
+Niter		10	## Number of optimizer iterations -- each iteration has popsize / 2 trials
+mutation	0.05	## Mutation rate for optimizer, probably keep low.
+min_start	-5	## Earliest start time to search
+max_start	10	## Latest start time to search
+min_window	0.1	## Minimum window size allowed
+max_window	20	## Maximum window size allowed
+
 ## Performance Details
 nproc		12	## Number of processes to use (for multiprocessing supported functions)
 
@@ -52,7 +63,7 @@ gen_ts		Yes	## Generate TS maps
 gen_lc		Yes	## Build a light curve
 
 
-## Debugging and Algorithm Parameters
+## Debugging Parameters
 
 runlog		No	## Saves a log file keeping track of progress; useful for debugging
 clobber		No	## If Yes, will overwrite some existing files

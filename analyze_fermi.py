@@ -165,8 +165,10 @@ def read_parameters(pfile):
         key = sl[0].strip()
         
         ## First, handle special cases
-        if key == "nproc" or key == "N_ebin" or key == "TSPix": 
+        if key == "nproc" or key == "N_ebin" or key == "TSPix" or key == "popsize": 
             ## Should be integer
+            params[key] = int(sl[1])
+        elif key == "Niter":
             params[key] = int(sl[1])
             
         elif len(sl[1].split("-")) == 3 & len(sl[1].split("-")) == 3:
@@ -750,14 +752,18 @@ def likelihood_wrapper(run_pars):
         F , unc , ts = binned_likelihood(*run_pars[0:5], lock = run_pars[6])
     except Exception as e:
         err_l = "err_log_1_" + run_pars[4] + ".log"
-        outlog = open(err_l + "w")
+        outlog = open(err_l , "w")
+        for par in run_pars:
+            outlog.write(str(par) + "\n")
         outlog.write(traceback.format_exc())
         outlog.close()
         try:
             F , unc , ts = binned_likelihood(*run_pars[0:5], lock = run_pars[6])
         except:
             err_l = "err_log_1_" + run_pars[4] + ".log"
-            outlog = open(err_l + "w")
+            outlog = open(err_l , "w")
+            for par in run_pars:
+                outlog.write(str(par) + "\n")
             outlog.write(traceback.format_exc())
             outlog.close()
             return [0,0,0,0]
@@ -773,7 +779,7 @@ def likelihood_wrapper(run_pars):
         # will most likely exist. Nominally the locking mechanisms now
         # fix this, but code is still here for testing.
 
-    F , Flow , Fhigh , DeltaLogL = compute_upper_lim(run_pars[0] , run_pars[4])
+    
     F2 = -99
     if ts < run_pars[0]["ts_lim"] and run_pars[0]["up_lim_lc"]:
         try:
@@ -849,7 +855,7 @@ def light_curve_singleproc(params, clobber, log = "mp_log"):
 
     
     id = 0
-    while t + window_half_seconds < end:
+    while t < end:
         
         fheader = f"_{params['window']}_{params['lcstep']}_{tpeak_start}_st{id}"
         st = t - window_half_seconds
@@ -1122,7 +1128,7 @@ def compute_upper_lim(params, fheader):
     like = BinnedAnalysis(obs,f'ul{fheader}.xml',optimizer=opt)
     likeobj=pyLike.NewMinuit(like.logLike)
 
-    breakpoint()
+    
     try:
         like.tol = 0.0001
         res = like.fit(verbosity=1,covar=True,optObject=likeobj)
@@ -1474,7 +1480,9 @@ def find_max_TS(params):
     f.close()
     x0 = [0, 15]
     
-    boundaries = [ [-5 , 10 ] , [ 0.1 , 20 ]  ] 
+    start_bounds = [params["min_start"] , params["max_start"] ]
+    window_bounds = [ params["min_window"] , params["max_window"] ]
+    boundaries = [ start_bounds , window_bounds  ] 
     '''
     result = opt.minimize(min_ts , x0)
     optf = open("optimize_res.txt" , "w")
@@ -1484,10 +1492,48 @@ def find_max_TS(params):
     print (result)
     print (result.x)
     '''
+    
     Bx , Bf , neval = ga.genetic_algorithm(opt_func , boundaries, popsize = params["popsize"],
                 Niter = params["Niter"], nproc = params["nproc"], mutation_rate=params["mutation"])
     print (Bx , Bf)
     return Bx , Bf
+
+def TS_Grid(params , starts , ends):
+    ## Start by setting up our parameter array
+    param_array = []
+
+
+    with mp.Manager() as manager:
+        lock = manager.Lock()
+        id = 0
+        
+       
+        
+
+        for start in starts:
+            for end in ends:
+                if end <= start:
+                    continue
+                fheader = f"_grid_{start}_{end}"
+                st = tpeak_to_met(start, params)
+                et = tpeak_to_met(end, params)
+                
+                param_row = [params, st, et, False, fheader, "gridlog", lock]
+                rlog = param_row[4] + param_row[5] + ".csv"
+                if not os.path.exists(rlog):
+                    param_array.append(param_row)
+        ## maxtasksperchild = 1 is designed to resolve a memory usage problem
+        ## Probably mildly inneficient, but better than consuming many GB of
+        ## RAM per process.
+        print (len(param_array))
+        
+        
+        results = []
+        with mp.Pool(processes=params["nproc"], maxtasksperchild=1) as p:
+            imres = p.imap(likelihood_wrapper , param_array, chunksize=1)
+            for res in imres:
+                results.append(res)
+    
 
 if __name__ == "__main__":
     
@@ -1533,7 +1579,8 @@ if __name__ == "__main__":
             e2 = time.time()
             print (f"My Upper Limit Flux = {Flux}; runtime is {(end-start)/60.} m")
             print (f"FermiTools Upper Limit Flux = {Flux2}; runtime is {(e2-s2)/60.} m")
-        
+        print ("Model TS value is" , TS)
+        print ("Model Flux is " , F)
         params["input_model"] = "fit_model.xml"
     ## Compute TS Maps
     if params["gen_ts"]:
@@ -1550,4 +1597,8 @@ if __name__ == "__main__":
         
         print (f"Total light curve runtime was {(end-start)/60} minues")
         
-    
+    if params["gen_grid"]:
+        starts = np.arange(-10 , 10 , 1)
+        ends = np.arange(1 , 35)
+        
+        TS_Grid(params, starts , ends)

@@ -67,9 +67,10 @@ def plot_TS_search(params):
         TS.append(float(sl[2]))
         
     plt.scatter(start , window , c = TS)
-    plt.colorbar()
-    plt.xlabel("Start Time")
-    plt.ylabel("Window Width")
+    plt.colorbar(label = "TS")
+    plt.xlabel("Start Time (days since peak)")
+    plt.ylabel("Window Width (days)")
+    
     plt.savefig("Fit_Monitor.pdf")
     plt.close()
 def plot_light_curve(params, display=False, compile_csv = None):
@@ -95,7 +96,8 @@ def plot_light_curve(params, display=False, compile_csv = None):
     '''
 
     Time , TS , Unc , Flux , ul2 , ww = load_data(params , compile_csv)
-
+    if len(Time) == 0:
+        return 0
         
     if len(sys.argv) > 2:
         tcut = float(sys.argv[2])
@@ -180,7 +182,7 @@ def load_data(params , compile_csv = None):
         compiled_csv = params["name"] + f"_{int(params['window'])}_lcdata.csv"
         if not os.path.exists(compiled_csv):
             print ("No data found, exiting")
-            exit()
+            return [],[],[],[],[],[]
     Time = []
     TS = []
     Flux = []
@@ -222,6 +224,8 @@ def TS_hist(params, compile_csv = None):
     '''
     
     Time , TS , Unc , Flux , ul2 , ww = load_data(params , compile_csv)
+    if len(Time) == 0:
+        return
     if np.min(Time) >= -60:
         ## No suitable background data
         print ("No background runs detected")
@@ -278,10 +282,13 @@ def TS_hist(params, compile_csv = None):
     
 
     print (f"Statistics based on {len(TS[back])} Trials")
-    rows = [["Sigma" , "TS" , "Fraction"]]
+    rows = [["Sigma" , "TS" , "Number" , "Fraction (Cumulative)"]]
     table_x = [1 , 4 , 9 , 16 , 25]
+    N_old = 0
     for x in table_x:
-        rows.append([np.sqrt(x) , x , len(np.where(TS[back] <= x)[0]) / len(TS[back])])
+        Nbin = len(np.where(TS[back] <= x)[0])
+        Ntri = len(np.where(TS[back] <= x)[0])
+        rows.append([np.sqrt(x) , x ,Ntri, Ntri / len(TS[back])])
     print (tabulate(rows))
     
 def compile_data(params, output=None):
@@ -315,6 +322,8 @@ def compile_data(params, output=None):
         fname = os.path.join(dir , i)
         if ".csv" not in fname or "mp" not in fname or str(params["window"]) not in fname or str(params["lcstep"]) not in fname:
             continue
+        elif "grid" in fname:
+            continue
         f = open(fname)
         for line in f.readlines():
             split_line = line.split(",")
@@ -338,7 +347,7 @@ def compile_data(params, output=None):
     
     if len(METs) == 0:
         print ("No Data Found, exiting now")
-        exit()
+        return 0
     isort = np.argsort(Time)
     out_file = open(output, "w")
     
@@ -351,9 +360,53 @@ def compile_data(params, output=None):
         out_file.write(csv_line + "\n")
     out_file.close()
     
+def TS_Grid(params):
+    
+    '''
+    Plots the results from a TS Grid search
+    '''
+    
+    dir = "./"
+    start = []
+    end = []
+    TS = []
+    Flux = []
+    Flux_err = []
+   
+    for i in os.listdir(dir):
+        fname = os.path.join(dir , i)
+        
+        if ".csv" not in fname:
+            continue
+        elif "grid" not in fname:
+            continue
+        f = open(fname)
+        sn1 = fname.split("grid")[1]
+        sn2 = sn1.split("_")
+        start.append(int(sn2[1]))
+        end.append(int(sn2[2]))
+        
+        for line in f.readlines():
+            split_line = line.split(",")
+            Flux.append(float(split_line[0]))
+            Flux_err.append(float(split_line[1]))
+            TS.append(float(split_line[2]))
+    
+    TSi = TS.index(max(TS))
+    print (f"Maximum TS is {max(TS)}")
+    mark1 = plt.Circle(( end[TSi], start[TSi]) , 0.5, fill=False)
+    
+    plt.scatter(end , start, c = TS, cmap = "magma")
+    plt.gca().add_artist(mark1)
+    plt.colorbar(label="TS")
+    plt.ylabel("Start Time (days)")
+    plt.xlabel("End Time (days)")
+    plt.savefig("TSGrid.pdf")
+    plt.show()
 if __name__ == "__main__":
     params = af.read_parameters(sys.argv[1])
     plot_TS_search(params)
     compile_data(params)
     plot_light_curve(params)
     TS_hist(params)
+    TS_Grid(params)
