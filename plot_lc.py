@@ -382,10 +382,12 @@ def TS_Grid(params):
         elif "grid" not in i:
             continue
         f = open(fname)
-        sn1 = i.split("grid")[1]
+        print (fname)
+        
+        sn1 = i.split("grid")[2]
         sn2 = sn1.split("_")
-        start.append(int(sn2[1]))
-        end.append(int(sn2[2]))
+        start.append(float(sn2[1]))
+        end.append(float(sn2[2].split(".")[0]))
         
         for line in f.readlines():
             split_line = line.split(",")
@@ -398,14 +400,26 @@ def TS_Grid(params):
 
     TSi = TS.index(max(TS))
     print (f"Maximum TS is {max(TS)}")
-    mark1 = plt.Circle(( end[TSi], start[TSi]) , 0.5, fill=False)
+    #mark1 = plt.Circle(( end[TSi], start[TSi]) , 0.5, fill=False)
     
-    plt.scatter(end , start, c = TS, cmap = "magma")
-    plt.gca().add_artist(mark1)
+    plt.scatter(end , start, c = TS)
+    #plt.gca().add_artist(mark1)
     plt.colorbar(label="TS")
+    plt.scatter(end[TSi] , start[TSi] , marker = "o", facecolors =  'none',  edgecolors = "black",
+                s = plt.rcParams['lines.markersize'] ** 2 * 5)
     plt.ylabel("Start Time (days)")
     plt.xlabel("End Time (days)")
     plt.savefig(params["figdir"] + "TSGrid.pdf")
+    plt.show()
+    
+    plt.scatter(end , start, c = np.log10(np.array(Flux)))
+    #plt.gca().add_artist(mark1)
+    plt.colorbar(label="log10(Flux)")
+    plt.scatter(end[TSi] , start[TSi] , marker = "o", facecolors =  'none',  edgecolors = "black",
+                s = plt.rcParams['lines.markersize'] ** 2 * 5)
+    plt.ylabel("Start Time (days)")
+    plt.xlabel("End Time (days)")
+    plt.savefig(params["figdir"] + "FluxGrid.pdf")
     plt.show()
 if __name__ == "__main__":
     params = af.read_parameters(sys.argv[1])

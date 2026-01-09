@@ -750,8 +750,7 @@ def likelihood_wrapper(run_pars):
     '''
 
     
-    log_file = run_pars[5] + run_pars[4] +  ".csv"
-    
+    log_file = run_pars[7] + run_pars[5] + run_pars[4] +  ".csv"
     
     try:
         F , unc , ts = binned_likelihood(*run_pars[0:5], lock = run_pars[6], outdir = run_pars[7])
@@ -844,7 +843,7 @@ def light_curve_singleproc(params, clobber, log = "mp_log"):
     start = tpeak_to_met(params["lc_start"], params)
     end = tpeak_to_met(params["lc_end"], params)
     lcdir = params["lc_outdir"]
-    log = lcdir + log
+    log = log
     ## Start by setting up our parameter array
     param_array = []
     
@@ -928,7 +927,7 @@ def light_curve_multiproc(params , clobber, log="mp_log"):
     start = tpeak_to_met(params["lc_start"], params)
     end = tpeak_to_met(params["lc_end"], params)
     lcdir = params["lc_outdir"]
-    log = lcdir + log
+    log =  log
     ## Start by setting up our parameter array
     param_array = []
     
@@ -1266,12 +1265,18 @@ def cleanup(params , fheader, all_files = False, outdir = "./"):
     _______
     '''
     
-    
+    print ("DEBUGGING CLEANUP PARAMETERS")
+    print (outdir)
+    print (params)
+    print (fheader)
     for i in os.listdir(outdir):
         
         if (params["name"] not in i and "temp" not in i) or fheader not in i:
             continue
+        elif ".csv" in i:
+            continue
         
+        print (i)
         if "srcmap" in i: ## Source Maps
             os.remove(outdir + i)
         elif "BinnedExpMap" in i or "_ltCube" in i:
@@ -1508,7 +1513,7 @@ def TS_Grid(params , starts , ends):
                 et = tpeak_to_met(end, params)
                 
                 param_row = [params, st, et, False, fheader, "gridlog", lock, grid_dir]
-                rlog = param_row[7] + param_row[4] + param_row[5] + ".csv"
+                rlog =param_row[7] +  param_row[5] + param_row[4] + ".csv"
                 print (rlog)
                 if not os.path.exists(rlog):
                     param_array.append(param_row)
