@@ -224,7 +224,7 @@ def read_parameters(pfile):
         params["infile"] = infile
         params["scfile"] = scfile
         
-    if "input_model" not in params.keys():
+    if "input_model" not in params.keys() or params["input_model"].lower() == "none":
         params["input_model"] = params["name"] + "_input_model.xml"
         
         
@@ -816,7 +816,7 @@ def likelihood_wrapper(run_pars):
         f.close()
         
     if run_pars[0]["cleanlc"]:
-        cleanup(run_pars[0] , run_pars[4], run_pars[7])
+        cleanup(run_pars[0] , run_pars[4], all_files = True, outdir = run_pars[7])
     return [F , unc , ts , tmid]
 
 def light_curve_singleproc(params, clobber, log = "mp_log"):
@@ -1536,9 +1536,6 @@ if __name__ == "__main__":
     params = read_parameters(paramfile)
     
     print_params(params)
-    ## Find Max TS
-    if params["find_mts"]:
-        mx = find_max_TS(params)
 
     ##Average Run First
     if params["gen_av"]:
@@ -1571,12 +1568,16 @@ if __name__ == "__main__":
             print (f"FermiTools Upper Limit Flux = {Flux2}; runtime is {(e2-s2)/60.} m")
         print ("Model TS value is" , TS)
         print ("Model Flux is " , F)
-        params["input_model"] = "fit_model.xml"
+        #params["input_model"] = "fit_model.xml"
         
-
     ## Compute TS Maps
     if params["gen_ts"]:
         TS_Map(params, params["av_outdir"] + "fit_model.xml", False)
+        
+    ## Find Max TS
+    if params["find_mts"]:
+        mx = find_max_TS(params)
+        
     
         
     ## Build a light curve
