@@ -8,6 +8,9 @@ test_V906_Car/temp*
 test_V906_Car/counts_spectra*
 test_V906_Car/*.reg
 test_V906_Car/*.npy
+test_V906_Car/avg_results/
+test_V906_Car/lc_results/
+test_V906_Car/ts_search_dir/
 mkdocs.sh
 docs/*
 .DS_Store
