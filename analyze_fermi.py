@@ -1529,13 +1529,8 @@ def TS_Grid(params , starts , ends):
                 results.append(res)
     
 
-if __name__ == "__main__":
+def run_analysis(parameters):
     
-    paramfile = sys.argv[1]
-    
-    params = read_parameters(paramfile)
-    
-    print_params(params)
 
     ##Average Run First
     if params["gen_av"]:
@@ -1596,3 +1591,14 @@ if __name__ == "__main__":
         ends = np.arange(params["min_end"] , params["max_end"] , params["gridstep"])
         
         TS_Grid(params, starts , ends)
+        
+
+if __name__ == "__main__":
+    
+    ## Read in parameter file
+    paramfile = sys.argv[1]
+    params = read_parameters(paramfile)
+    print_params(params)
+
+    ## Run our analysis
+    run_analysis(params)

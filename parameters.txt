@@ -22,8 +22,8 @@ nproc		12			## Number of processes to use (for multiprocessing supported functio
 
 ## What analysis should we run?
 
-find_mts	No			## Run search for maximum TS value
 gen_av		No			## Generate average likelihood fit
+find_mts	No			## Run search for maximum TS value
 gen_ts		No			## Generate TS maps
 gen_lc		No			## Build a light curve
 gen_grid	No			## Build Duration / TS Search Grid
