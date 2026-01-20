@@ -71,7 +71,8 @@ def plot_TS_search(params):
     plt.colorbar(label = "TS")
     plt.xlabel("Start Time (days since peak)")
     plt.ylabel("Window Width (days)")
-    
+    plt.gca().yaxis.set_ticks_position('both')
+    plt.gca().xaxis.set_ticks_position('both')
     plt.savefig(params["figdir"] + "Fit_Monitor.pdf")
     plt.close()
 def plot_light_curve(params, display=False, compile_csv = None):
@@ -122,9 +123,11 @@ def plot_light_curve(params, display=False, compile_csv = None):
     plt.rcParams.update({'font.size': 8})
     plt.scatter(Time , TS)
     plt.axhline(4 , ls = ":" , color = "blue")
-    plt.xlabel("Time since Peak (Days)")
+    plt.xlabel("Time Since Eruption (days)")
     plt.ylabel("TS")
     plt.tight_layout()
+    plt.gca().yaxis.set_ticks_position('both')
+    plt.gca().xaxis.set_ticks_position('both')
     plt.savefig(params["figdir"] + "TSFig.pdf")
     if display:
         plt.show()
@@ -137,15 +140,16 @@ def plot_light_curve(params, display=False, compile_csv = None):
     fdim = get_size(244 * ncol)
     fig = plt.figure(figsize = fdim)
     plt.rcParams.update({'font.size': 8})
-    plt.scatter(Time[det] , Flux[det], color = "blue")
-    plt.errorbar(Time[det] , Flux[det] , yerr = Unc[det] , xerr = ww[det] , ls = 'none', color = "blue")
     plt.scatter(Time[lim] , Flux[lim] , color = "orange" , marker = "v")
     plt.errorbar(Time[lim], Flux[lim] , xerr = ww[lim] , color = "orange" , ls = "none")
-    
+    plt.scatter(Time[det] , Flux[det], color = "blue")
+    plt.errorbar(Time[det] , Flux[det] , yerr = Unc[det] , xerr = ww[det] , ls = 'none', color = "blue")
     plt.yscale('log')
-    plt.xlabel("Time since peak (days)")
-    plt.ylabel("Flux (ph / s / cm$^{-2}$)")
+    plt.xlabel("Time Since Eruption (days)")
+    plt.ylabel("Flux (ph / s / cm$^{2}$)")
     plt.tight_layout()
+    plt.gca().yaxis.set_ticks_position('both')
+    plt.gca().xaxis.set_ticks_position('both')
     if display:
         plt.savefig(params["figdir"] + "LC.pdf")
         plt.show()
@@ -171,10 +175,11 @@ def plot_light_curve(params, display=False, compile_csv = None):
     print (ul2)
     plt.subplot(2,1,2)
     plt.scatter(Time[lim2] , Flux[lim2] - ul2[lim2])
-    plt.xlabel("Time since peak (days)")
+    plt.xlabel("Time Since Eruption (days)")
     plt.ylabel("Residual")
 
-
+    plt.gca().yaxis.set_ticks_position('both')
+    plt.gca().xaxis.set_ticks_position('both')
     plt.savefig(params["figdir"] + "ULS.pdf")
     plt.close()
 
@@ -244,6 +249,8 @@ def TS_hist(params, compile_csv = None):
     plt.xlabel("Test Statistic")
     plt.ylabel("Number of Trials")
     plt.tight_layout()
+    plt.gca().yaxis.set_ticks_position('both')
+    plt.gca().xaxis.set_ticks_position('both')
     plt.savefig(params["figdir"] + "TS_Hist.pdf")
     plt.close()
     
@@ -261,6 +268,8 @@ def TS_hist(params, compile_csv = None):
     #plt.xlabel("Test Statistic")
     plt.ylabel("Number of Trials")
     plt.tight_layout()
+    plt.gca().yaxis.set_ticks_position('both')
+    plt.gca().xaxis.set_ticks_position('both')
     plt.savefig(params["figdir"] + "TS_Hist_wpdf.pdf")
     plt.close()
     
@@ -278,6 +287,8 @@ def TS_hist(params, compile_csv = None):
     plt.xlabel("Test Statistic")
     plt.ylabel("Cumulative Distribution")
     plt.tight_layout()
+    plt.gca().yaxis.set_ticks_position('both')
+    plt.gca().xaxis.set_ticks_position('both')
     plt.savefig(params["figdir"] + "TS_cdf.pdf")
     plt.close()
     
@@ -409,6 +420,8 @@ def TS_Grid(params):
                 s = plt.rcParams['lines.markersize'] ** 2 * 5)
     plt.ylabel("Start Time (days)")
     plt.xlabel("End Time (days)")
+    plt.gca().yaxis.set_ticks_position('both')
+    plt.gca().xaxis.set_ticks_position('both')
     plt.savefig(params["figdir"] + "TSGrid.pdf")
     plt.show()
     
@@ -419,6 +432,8 @@ def TS_Grid(params):
                 s = plt.rcParams['lines.markersize'] ** 2 * 5)
     plt.ylabel("Start Time (days)")
     plt.xlabel("End Time (days)")
+    plt.gca().yaxis.set_ticks_position('both')
+    plt.gca().xaxis.set_ticks_position('both')
     plt.savefig(params["figdir"] + "FluxGrid.pdf")
     plt.show()
 if __name__ == "__main__":
