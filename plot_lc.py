@@ -412,8 +412,13 @@ def TS_Grid(params):
     TSi = TS.index(max(TS))
     print (f"Maximum TS is {max(TS)}")
     #mark1 = plt.Circle(( end[TSi], start[TSi]) , 0.5, fill=False)
+    ncol = 1 ## Change to 2 for a two-column figure.
+    fdim = get_size(244 * ncol)
+    fig = plt.figure(figsize = fdim)
     
-    plt.scatter(end , start, c = TS)
+    plt.rcParams.update({'font.size': 8})
+    plt.rcParams.update({'lines.markersize':2.5})
+    plt.scatter(end , start, c = TS )
     #plt.gca().add_artist(mark1)
     plt.colorbar(label="TS")
     plt.scatter(end[TSi] , start[TSi] , marker = "o", facecolors =  'none',  edgecolors = "black",
@@ -422,6 +427,7 @@ def TS_Grid(params):
     plt.xlabel("End Time (days)")
     plt.gca().yaxis.set_ticks_position('both')
     plt.gca().xaxis.set_ticks_position('both')
+    plt.tight_layout()
     plt.savefig(params["figdir"] + "TSGrid.pdf")
     plt.show()
     
