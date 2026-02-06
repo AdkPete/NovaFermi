@@ -19,6 +19,7 @@ import tabulate
 import multiprocessing as mp
 from astropy.io import fits
 import time
+import yaml
 import gc
 import scipy.optimize as opt
 import gen_alg as ga
@@ -155,80 +156,33 @@ def read_parameters(pfile):
     _______
     params : dict : contains all analysis options and parameters
     '''
-    
-    f = open(pfile)
-    params = {}
-    for i in f.readlines():
-        sl = i.split("\t")
-        while "" in sl:
-            sl.remove("")
-        if i[0] == "#" or len(sl) == 1:
-            continue
-        key = sl[0].strip()
-        
-        ## First, handle special cases
-        if key == "nproc" or key == "N_ebin" or key == "TSPix" or key == "popsize": 
-            ## Should be integer
-            params[key] = int(sl[1])
-        elif key == "Niter" or key == "gridstep":
-            params[key] = int(sl[1])
-            
-        elif len(sl[1].split("-")) == 3 & len(sl[1].split("-")) == 3:
-            ## This is a time entry
-            ## Will convert to MET
+    with open(pfile, 'r') as f:
+        config = yaml.safe_load(f)
+        params = config["params"]
+        ## convert peak to MET
 
-            date = sl[1].split(" ")[0]
-            time = sl[1].split(" ")[1]
-            year = int(date.split("-")[0])
-            month = int(date.split("-")[1])
-            day = int(date.split("-")[2])
-            hour = int(time.split(":")[0])
-            minute = int(time.split(":")[1])
-            second = int(float(time.split(":")[2]))
-            stime = dtime.datetime(year=year,month=month,day=day,hour=hour,
-                        minute=minute,second=second,tzinfo=dtime.timezone.utc)
-            MET = cal_to_met(stime)
-            params[key] = MET
+        date = params["peak"].split(" ")[0]
+        time = params["peak"].split(" ")[1]
+        year = int(date.split("-")[0])
+        month = int(date.split("-")[1])
+        day = int(date.split("-")[2])
+        hour = int(time.split(":")[0])
+        minute = int(time.split(":")[1])
+        second = int(float(time.split(":")[2]))
+        stime = dtime.datetime(year=year,month=month,day=day,hour=hour,
+                    minute=minute,second=second,tzinfo=dtime.timezone.utc)
+        MET = cal_to_met(stime)
+        params["peak"] = MET
         
-        elif sl[1].strip().lower() == "now":
-            ## Get MET of right now
-            MET = cal_to_met(dtime.datetime.now(tz=dtime.timezone.utc))
-            params[key] = MET
-        elif "none" in sl[1].lower() or "N/A" in sl[1].lower():
-            continue
-        
-        elif "outdir" in key or "figdir" in key:
-            directory = sl[1].strip()
-            if not os.path.exists(directory):
-                os.mkdir(directory)
-            params[key] = directory
-        ## General handling of other params
-
-        ## Boolean options first
-        elif sl[1].strip().lower() == "yes":
-            params[key] = True
-        
-        elif sl[1].strip().lower() == "no":
-            params[key] = False
-        
-        ## Floats / strings last
-
-        else:
-            try:
-                params[key] = float(sl[1])
-            except:
-                params[key] = sl[1].strip()
-    if "infile" not in params.keys() or "scfile" not in params.keys():
-        ## If data is not specified, auto-detect data files.
-        infile , scfile = setup_events_file(params, clobber=False)
-        params["infile"] = infile
-        params["scfile"] = scfile
-        
-    if "input_model" not in params.keys() or params["input_model"].lower() == "none":
-        params["input_model"] = params["name"] + "_input_model.xml"
-        
-        
-    return params
+        ## Set a few defaults
+        if "input_model" not in params.keys() or params["input_model"].lower() == "none":
+            params["input_model"] = params["name"] + "_input_model.xml"
+        if "infile" not in params.keys() or "scfile" not in params.keys():
+            ## If data is not specified, auto-detect data files.
+            infile , scfile = setup_events_file(params, clobber=False)
+            params["infile"] = infile
+            params["scfile"] = scfile
+            return params
 
 def print_params(params):
     

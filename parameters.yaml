@@ -1,0 +1,87 @@
+params:
+
+  # Source Specific Parameters:
+
+  ra: XX # Source RA (in degrees)
+  dec: XX # Source Dec (in degrees)
+  name: XX # Source Name (must match xml input file!)
+  peak: year-mm-dd hh:mm:ss # Peak date and time (UTC)
+  data_path: data/ # Path to data files for this source
+  figdir: Figures/ # Directory to save figures to
+
+  # General Analysis Parameters:
+
+  emin: 100 # Minimum Energy (MeV)
+  emax: 300000 # Maximum Energy (MeV)
+  pix_sc: 0.2 # Pixel size for spatial binning (degrees)
+  N_ebin: 37 # Number of energy bins. Should be >= 10 per decade (or >= 8?)
+  roi: 10 # Radius of region of interest in degrees
+
+  ## Performance Details
+  nproc: 10 # Number of processes to use (for supported functions).
+
+  # What analysis should we run?
+
+  gen_av: True # Generate average likelihood fit
+  find_mts: False # Run search for maximum TS value.
+  gen_ts: False # Generate TS maps
+  gen_lc: False # Build a light curve
+  gen_grid: False # Build Duration / TS Search Grid
+
+  # Average model fit parameters. Only runs if gen_av is True
+  # Note that all times are in days relative to the peak defined above
+
+  avstart: -1 # Start time for average flux calculation
+  avend: 11 # End time for average flux calculation
+  up_lim_av: False # Compute upper lim if TS is low
+  av_ts_lim: 25 # TS limit for upper limit calculation
+  av_outdir: avg_results/ # Location to save data.
+
+  # TS Map Parameters:
+
+  TSPix: 25 # Number of pixels per axis (total = TSPix^2).
+  TSscale: 0.25 # Pixel size (degrees)
+
+  # Light Curve Parameters
+
+  window: 15 # Total window width for each bin
+  lcstep: 5 # Time (days) between light curve points
+  cleanlc: True # Automatically delete intermediate files
+  up_lim_lc: True # Flag to compute upper limits in light curve
+  ts_lim: 4 # TS value below which we compute upper limits
+  lc_start: -10 # Start time for light curve.
+  lc_end: 25 # End time for light curve.
+  lc_outdir: lc_results/ # Location to save data.
+
+  # TS Search Parameters
+  # Note that this section is experimental. Will run an optimizer to search
+  # for the maximum TS value. For most practical purposes, just run the 
+  # TS grid below instead. Runs a genetic algorithm.
+
+  popsize: 20 # Will start with this many random solutions.
+  Niter: 10 # Number of iterations; each iteration has popsize / 2 trials
+  mutation: 0.05 # Mutation rate for optimizer, probably keep low.
+  min_start: -5 # Earliest start time to search
+  max_start: 10 # Latest start time to search
+  min_window: 0.1 # Minimum window size allowed
+  max_window: 20 # Maximum window size allowed
+  tsm_outdir: ts_search_dir/ # Location to save data.
+
+  # TS Grid Parameters
+
+  min_start: -10 # First start time to consider
+  max_start: 10 # Last start time to consider
+  gridstep: 1 # Step size for grid. Same size is used for start and end times
+  min_end: 1 # First end time to consider
+  max_end: 35 # Last end time to consider
+  grid_outdir: grid_results/ # Location to save grid results
+
+
+  # Debugging Parameters
+
+  runlog: No # Saves a log file for each analysis keeping track of progress; useful for debugging
+  clobber: No # If Yes, will overwrite existing files. Generally recommended to leave as No.
+
+  # Calibration Directory containing calibration files.
+
+  cal_dir: /Users/Peter/Documents/Research/Novae/Fermi/Diffuse/
