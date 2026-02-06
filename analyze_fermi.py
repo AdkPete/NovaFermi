@@ -160,7 +160,6 @@ def read_parameters(pfile):
         config = yaml.safe_load(f)
         params = config["params"]
         ## convert peak to MET
-
         date = params["peak"].split(" ")[0]
         time = params["peak"].split(" ")[1]
         year = int(date.split("-")[0])
@@ -182,7 +181,12 @@ def read_parameters(pfile):
             infile , scfile = setup_events_file(params, clobber=False)
             params["infile"] = infile
             params["scfile"] = scfile
-            return params
+            
+        for i in params.keys():
+            if "outdir" in i or "figdir" in i:
+                if not os.path.exists(params[i]):
+                    os.mkdir(params[i])
+        return params
 
 def print_params(params):
     
