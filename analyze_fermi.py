@@ -222,7 +222,7 @@ def gen_model(params, fheader, lock=None, outdir = "./"):
     None
     '''
     
-
+    
     dfname = params["cal_dir"] + "gll_psc_v32.xml"
     gti = outdir + f"{params['name']}{fheader}_filtered_gti.fits"
     model_fname = params["input_model"]
@@ -566,8 +566,8 @@ def binned_likelihood(params, tstart , tend , clobber = False, fheader = "", sil
         rf = open(runlogname , "a")
         rf.write("Getting Source Model\n")
         rf.close()
-        
-    gen_model(params, fheader, outdir)
+    
+    gen_model(params, fheader, lock, outdir = outdir)
     
     if params["runlog"]:
         rf = open(runlogname , "a")
