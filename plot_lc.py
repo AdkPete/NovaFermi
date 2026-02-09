@@ -429,7 +429,7 @@ def TS_Grid(params):
     plt.gca().xaxis.set_ticks_position('both')
     plt.tight_layout()
     plt.savefig(params["figdir"] + "TSGrid.pdf")
-    plt.show()
+    plt.close()
     
     plt.scatter(end , start, c = np.log10(np.array(Flux)))
     #plt.gca().add_artist(mark1)
@@ -441,7 +441,14 @@ def TS_Grid(params):
     plt.gca().yaxis.set_ticks_position('both')
     plt.gca().xaxis.set_ticks_position('both')
     plt.savefig(params["figdir"] + "FluxGrid.pdf")
-    plt.show()
+    plt.close()
+    
+    ## Print some useful stats
+    ii = np.where(np.array(TS) >= 9)
+    print ("Maximum flux in a significantly detected bin")
+    
+    print (np.max(np.array(Flux)[ii]))
+    print (start[ii[0][0]],end[ii[0][0]])
 if __name__ == "__main__":
     params = af.read_parameters(sys.argv[1])
     plot_TS_search(params)
