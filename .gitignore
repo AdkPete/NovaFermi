@@ -33,3 +33,4 @@ __pycache__/
 temp*
 gll*.fit
 html_docs/
+.vscode/
