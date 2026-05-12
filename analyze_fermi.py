@@ -233,8 +233,13 @@ def gen_model(params, fheader, lock=None, outdir = "./"):
     xml_command += f'{model_fname} --free_radius 5.0 --norms_free_only '
     xml_command += f'True --sigma_to_free 25 --variable_free True'
     subprocess.run(xml_command, shell=True)
-    
-    input("Please edit input_model to include source models. Then, hit enter")
+    if not os.path.exists(f'{model_fname}'):
+        print (xml_command)
+        message = "make4FGLxml not successful; please run the above command "
+        message += "and edit as needed, then hit enter:"
+        input(message)
+    else:
+        input("Please edit input_model to include source models. Then, hit enter")
     
 def data_selection(params, tstart, tend, clobber, fheader, lock=None, outdir = "./"):
     '''
@@ -459,6 +464,8 @@ def fit_model(params, fheader, get_like, inmod = "No" , opt = 'NewMINUIT', silen
         inmod =params["input_model"]
         
     src_name = outdir + f'{params["name"]}{fheader}_srcmap.fits'
+    
+    # ! The following is no longer used and should be removed in a future update:
     drmnfb_comm = f'gtlike statistic=BINNED cmap={src_name} '
     drmnfb_comm += f'bexpmap={outdir}{params["name"]}{fheader}_BinnedExpMap.fits '
     drmnfb_comm += f'expcube={outdir}{params["name"]}{fheader}_ltCube.fits '
@@ -467,15 +474,23 @@ def fit_model(params, fheader, get_like, inmod = "No" , opt = 'NewMINUIT', silen
     
     if silent:
         drmnfb_comm += ">/dev/null "
-    checklocks(lock)
-    subprocess.run(drmnfb_comm,shell=True)
+    
+    #checklocks(lock)
+    #subprocess.run(drmnfb_comm,shell=True)
     
     obs = BinnedObs(srcMaps=src_name,
             binnedExpMap=f'{outdir}{params["name"]}{fheader}_BinnedExpMap.fits',
             expCube=f'{outdir}{params["name"]}{fheader}_ltcube.fits',irfs='P8R3_SOURCE_V3')
-    like = BinnedAnalysis(obs,f'{outdir}temp{fheader}.xml',optimizer=opt)
+    # // like = BinnedAnalysis(obs,f'{outdir}temp{fheader}.xml',optimizer=opt)
+    like = BinnedAnalysis(obs,f'{inmod}',optimizer="DRMNFB")
     likeobj=pyLike.NewMinuit(like.logLike)
 
+    like.tol = 0.01
+    
+    checklocks(lock)
+    res = like.fit(verbosity=1,covar=True,optObject=likeobj)
+    like.optimizer = "NewMinuit"
+    
     try:
         like.tol = 0.0001
         checklocks(lock)
@@ -1092,7 +1107,7 @@ def compute_upper_lim(params, fheader, outdir = "./"):
     
     def L(P):
         '''
-        Function to run the model fitting and return -logL. The intend
+        Function to run the model fitting and return -logL. The intent
         is to find the point where the return of this function is 
         2.71/2 greater than the best fitting likelihood
         '''
