@@ -763,15 +763,17 @@ def likelihood_wrapper(run_pars):
             F , Flow , Fhigh , DeltaLogL = compute_upper_lim(run_pars[0] , run_pars[4], outdir = run_pars[7])
             
             unc = -1
+            '''
             try:
             
                 F2 = FermiTools_UpperLim(run_pars[0] , run_pars[4], outdir = run_pars[7])
             except:
                 F2 = -1
+            '''
         except:
             try:
                 F = FermiTools_UpperLim(run_pars[0] , run_pars[4], outdir = run_pars[7])
-                F2 = -99
+                #F2 = -99
             except:
                 return [0,0,0,0]
             
@@ -785,7 +787,7 @@ def likelihood_wrapper(run_pars):
         f = open(log_file , "w")
         tmid = (run_pars[1] + run_pars[2]) / 2.0
         f.write(str(F) + "," + str(unc) + "," + str(ts) + "," + str(tmid))
-        f.write("," + str(F2))
+        #f.write("," + str(F2))
         f.close()
         
     if run_pars[0]["cleanlc"]:
@@ -1526,15 +1528,21 @@ def run_analysis(parameters):
             start = time.time()
             Flux = compute_upper_lim(params , "", outdir = av_dir)[0]
             end = time.time()
+            
+            # ! Commented out FermiTools Upper limits; nominally no longer
+            # ! necessary.
+            '''
             s2 = time.time()
+            
             try:
                 Flux2 = FermiTools_UpperLim(params, "", outdir = av_dir)
             except:
                 Flux2 = -99
             e2 = time.time()
+            '''
             print (f"My Upper Limit Flux = {Flux}; runtime is {(end-start)/60.} m")
-            print (f"FermiTools Upper Limit Flux = {Flux2}; runtime is {(e2-s2)/60.} m")
-        print ("Model TS value is" , TS)
+            # // print (f"FermiTools Upper Limit Flux = {Flux2}; runtime is {(e2-s2)/60.} m")
+        print ("Model TS value is", TS)
         print ("Model Flux is " , F)
         #params["input_model"] = "fit_model.xml"
         
