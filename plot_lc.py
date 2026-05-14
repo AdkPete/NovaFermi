@@ -97,7 +97,7 @@ def plot_light_curve(params, display=False, compile_csv = None):
     None
     '''
 
-    Time , TS , Unc , Flux , ul2 , ww = load_data(params , compile_csv)
+    Time , TS , Unc , Flux , ww = load_data(params , compile_csv)
     if len(Time) == 0:
         return 0
         
@@ -111,7 +111,7 @@ def plot_light_curve(params, display=False, compile_csv = None):
     TS = TS[ii]
     Unc = Unc[ii]
     Flux = Flux[ii]
-    ul2 = ul2[ii]
+    #ul2 = ul2[ii]
     ww = ww[ii]
     if len(Time) == 0:
         return 0
@@ -156,7 +156,9 @@ def plot_light_curve(params, display=False, compile_csv = None):
     else:
         plt.savefig(params["figdir"] + "LC.pdf")
         plt.close()
+    return 0
 
+    # todo remove this code since it no longer gets called
     ncol = 1 ## Change to 2 for a two-column figure.
     fdim = get_size(244 * ncol)
     fig = plt.figure(figsize = fdim)
@@ -193,7 +195,7 @@ def load_data(params , compile_csv = None):
     TS = []
     Flux = []
     Unc = []
-    ul2 = []
+    #ul2 = []
     f = open(compiled_csv)
     for i in f.readlines():
         if "TS" in i:
@@ -204,19 +206,19 @@ def load_data(params , compile_csv = None):
         Flux.append(float(sl[3]))
         Unc.append(float(sl[4]))
 
-        ul2.append(float(sl[5]))
+        #ul2.append(float(sl[5]))
         
 
     Time = np.array(Time)
     TS = np.array(TS)
     Unc = np.array(Unc)
     Flux = np.array(Flux)
-    ul2 = np.array(ul2)
+    #ul2 = np.array(ul2)
     ww = np.array([params["window"]/2.0] * len(Flux))
     ii = np.where(Flux > 0)
     if np.min(Flux) < 0:
         print ("Warning: At least one Likelihood calculation Failed, F < 0")
-    return Time[ii] , TS[ii] , Unc[ii] , Flux[ii] , ul2[ii] , ww[ii]
+    return Time[ii] , TS[ii] , Unc[ii] , Flux[ii] , ww[ii]
 
 def TS_hist(params, compile_csv = None):
     
@@ -229,7 +231,7 @@ def TS_hist(params, compile_csv = None):
     TS values are behaving as expected.
     '''
     
-    Time , TS , Unc , Flux , ul2 , ww = load_data(params , compile_csv)
+    Time , TS , Unc , Flux , ww = load_data(params , compile_csv)
     if len(Time) == 0:
         return
     if np.min(Time) >= -60:
@@ -329,7 +331,7 @@ def compile_data(params, output=None):
     Time = []
     TS = []
     METs = []
-    ULS = []
+    # // ULS = []
     for i in os.listdir(dir):
         fname = os.path.join(dir , i)
         if ".csv" not in fname or "mp" not in fname or str(params["window"]) not in fname or str(params["lcstep"]) not in fname:
@@ -343,8 +345,8 @@ def compile_data(params, output=None):
             Unc.append(float(split_line[1]))
             TS.append(float(split_line[2]))
             MET = float(split_line[3])
-            ul2 = float(split_line[4])
-            ULS.append(ul2)
+            #ul2 = float(split_line[4])
+            #ULS.append(ul2)
             METs.append(MET)
             tpeak = af.met_to_tpeak(MET , params)
             Time.append(tpeak)
@@ -355,7 +357,7 @@ def compile_data(params, output=None):
     Flux = np.array(Flux)
     Unc = np.array(Unc)
     Time = np.array(Time)
-    ULS = np.array(ULS)
+    # // ULS = np.array(ULS)
     
     if len(METs) == 0:
         print ("No LC Data Found, exiting now")
@@ -368,7 +370,7 @@ def compile_data(params, output=None):
     out_file.write(header)
     
     for ind in isort:
-        csv_line = f"{Time[ind]},{METs[ind]},{TS[ind]},{Flux[ind]},{Unc[ind]},{ULS[ind]}"
+        csv_line = f"{Time[ind]},{METs[ind]},{TS[ind]},{Flux[ind]},{Unc[ind]}"#//,{ULS[ind]}"
         out_file.write(csv_line + "\n")
     out_file.close()
     
