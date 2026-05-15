@@ -4,6 +4,8 @@ files = []
 for i in os.listdir("./"):
     if "PH" in i and ".fits" in i:
         continue
+    if ".yaml" in i:
+        continue
     if "SC" in i and ".fits" in i:
         continue
     if "parameters.txt" in i:
