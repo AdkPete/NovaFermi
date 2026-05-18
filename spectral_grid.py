@@ -4,6 +4,7 @@ sys.path.append("/Users/Peter/Documents/Research/Novae/NovaFermi/")
 from analyze_fermi import *
 import numpy as np
 import matplotlib.pyplot as plt
+from tqdm import tqdm
 
 def new_fit_model(params, ind, cutoff, outdir):
     
@@ -84,18 +85,42 @@ def spectral_grid(params, outdir):
     Flux = np.zeros((len(inds), len(cutoffs)))
     final_inds = np.zeros((len(inds), len(cutoffs)))
     final_cuts = np.zeros((len(inds), len(cutoffs)))
+    
     for i in range(len(inds)):
-        for j in range(len(cutoffs)):
-            Flux[i, j] , error , TS[i, j] = new_fit_model(params , inds[i], cutoffs[j], outdir)
+        for j in tqdm(range(len(cutoffs))):
             final_inds[i, j] = inds[i]
             final_cuts[i, j] = cutoffs[j]
+            out_name = outdir + f"save_{inds[i]}_{cutoffs[j]}.csv"
+            if os.path.exists(out_name):
+                print ("Reading Model W/ Ind = " , inds[i] , " Cutoff = " , cutoffs[j])
+                f = open(out_name)
+                line = f.readlines()[0]
+                Flux[i,j] = float(line.split(",")[0].strip())
+                TS[i,j] = float(line.split(",")[1].strip())
+                f.close()
+                
+            else:
+                
+                print ("Fitting Model W/ Ind = " , inds[i] , " Cutoff = " , cutoffs[j])
+                try:
+                    Flux[i, j] , error , TS[i, j] = new_fit_model(params , inds[i], cutoffs[j], outdir)
+                except:
+                    print (f"Model with Ind = {inds[i]} and Cutoff = {cutoffs[j]} failed to fit. Skipping.")
+                    continue
+                
+                f = open(out_name , "w")
+                out_line = str(Flux[i,j]) + "," + str(TS[i,j]) + "," + str(error)
+                f.write(out_line)
+                f.close()
+                
+
             
-    np.save(outdir + "spec_grid_flux.npy", Flux)
-    np.save(outdir + "spec_grid_TS.npy", TS)
+
     plt.scatter(final_inds.flatten(), final_cuts.flatten(), c = TS.flatten())
     plt.xlabel("Spectral Index")
     plt.ylabel("Cutoff Energy (MeV)")
     plt.colorbar(label = "TS")
+    plt.scatter(-1.9, 4300, c = "red", marker = "x")
     plt.savefig(outdir + "spec_grid_TS.pdf")
     plt.close()
     
@@ -103,6 +128,7 @@ def spectral_grid(params, outdir):
     plt.xlabel("Spectral Index")
     plt.ylabel("Cutoff Energy (MeV)")
     plt.colorbar(label = "Flux (erg/s/cm$^2$)")
+    plt.scatter(-1.9, 4300, c = "red", marker = "x")
     plt.savefig(outdir + "spec_grid_flux.pdf")
     plt.close()
     
