@@ -8,6 +8,7 @@ params:
   peak: year-mm-dd hh:mm:ss # Peak date and time (UTC)
   data_path: data/ # Path to data files for this source
   figdir: Figures/ # Directory to save figures to
+  input_model: None
 
   # General Analysis Parameters:
 
@@ -33,7 +34,7 @@ params:
 
   avstart: -1 # Start time for average flux calculation
   avend: 11 # End time for average flux calculation
-  up_lim_av: False # Compute upper lim if TS is low
+  up_lim_av: 2020-09-11.4 # Compute upper lim if TS is low
   av_ts_lim: 25 # TS limit for upper limit calculation
   av_outdir: avg_results/ # Location to save data.
 
