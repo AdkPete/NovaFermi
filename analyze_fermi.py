@@ -26,6 +26,9 @@ import gen_alg as ga
 import contextlib
 import traceback
 
+# for reading and editing XML files.
+from xml.etree import ElementTree as ET
+
 import gt_apps as my_apps
 from GtApp import GtApp
 from UpperLimits import UpperLimits
@@ -379,7 +382,19 @@ def gen_srcmap(params, clobber, fheader, lock=None, outdir = "./"):
     if not os.path.exists(src_name) or clobber:
         checklocks(lock)
         my_apps.srcMaps.run()
-        
+    
+    ## Check for file merge issues, and if so, run the merger function.
+    ti = 0
+    n_src_name = src_name + f"_{ti}.fits"
+    
+    if os.path.exists(n_src_name):
+        split_names = []
+        while os.path.exists(n_src_name):
+            split_names.append(n_src_name)
+            ti += 1
+            n_src_name = src_name + f"_{ti}.fits"
+        print (f"Source map appears to have been split into {len(split_names)} files. Running merger function.")
+        src_merger(split_names, src_name)
 def bin_data(params, clobber, fheader, lock=None, outdir = "./"):
     '''
     Function to generate counts maps / cubes
@@ -595,7 +610,7 @@ def binned_likelihood(params, tstart , tend , clobber = False, fheader = "", sil
         rf = open(runlogname , "a")
         rf.write("Fitting Source Model\n")
         rf.close()
-        
+    breakpoint()
     Flux , error , TS = fit_model(params , fheader, False, silent=silent,lock=lock, outdir = outdir)
     
     if params["runlog"]:
@@ -613,7 +628,45 @@ def binned_likelihood(params, tstart , tend , clobber = False, fheader = "", sil
 
     return Flux, error, TS
 
+def src_merger(split_files,fout):
+    
+    hdu2 = fits.open(fout)
+    new_hdus = []
+    new_hdus.append(hdu2[0].copy())
+    new_hdus.append(hdu2[1].copy())
+    new_hdus.append(hdu2[2].copy())
+    hdu2.close()
+    names = []
+    for fname in split_files:
+        hdu0 = fits.open(fname)
+        primary = True
+        for hdu in hdu0[::]:
+            
+            try:
+                sname = hdu.header["EXTNAME"]
+            except KeyError:
+                
+                sname = hdu.header["HDUNAME"]
+            if sname in names:
+                continue
+            names.append(sname)
+            if primary:
+                primary = False
+                
+                hdu.header.pop("HDUNAME", None)
 
+                # ensure EXTNAME consistency
+                hdu.header["EXTNAME"] = sname
+
+                # rebuild HDU cleanly (not copy())
+                new_hdus.append(fits.ImageHDU(data=hdu.data, header=hdu.header))
+                continue
+            new_hdus.append(hdu.copy())
+        hdu0.close()
+
+    hdul_out = fits.HDUList(new_hdus)
+    hdul_out.writeto(fout, overwrite=True)
+    hdul_out.close()
 
 def opt_func(x):
     '''
@@ -902,7 +955,7 @@ def light_curve_multiproc(params , clobber, log="mp_log"):
     start = tpeak_to_met(params["lc_start"], params)
     end = tpeak_to_met(params["lc_end"], params)
     lcdir = params["lc_outdir"]
-    log =  log
+    # // log =  log
     ## Start by setting up our parameter array
     param_array = []
     
