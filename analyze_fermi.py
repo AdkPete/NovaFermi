@@ -610,7 +610,7 @@ def binned_likelihood(params, tstart , tend , clobber = False, fheader = "", sil
         rf = open(runlogname , "a")
         rf.write("Fitting Source Model\n")
         rf.close()
-    breakpoint()
+    
     Flux , error , TS = fit_model(params , fheader, False, silent=silent,lock=lock, outdir = outdir)
     
     if params["runlog"]:
