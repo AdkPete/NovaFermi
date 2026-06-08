@@ -447,6 +447,9 @@ def TS_Grid(params):
     
     ## Print some useful stats
     ii = np.where(np.array(TS) >= 9)
+    if len(ii[0]) == 0:
+        print ("No significant bins detected")
+        return 0
     print ("Maximum flux in a significantly detected bin")
     
     print (np.max(np.array(Flux)[ii]))
