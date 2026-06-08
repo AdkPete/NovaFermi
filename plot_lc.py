@@ -190,7 +190,7 @@ def load_data(params , compile_csv = None):
         compiled_csv = params["lc_outdir"] + params["name"] + f"_{int(params['window'])}_lcdata.csv"
         if not os.path.exists(compiled_csv):
             print ("No LC data found, exiting")
-            return [],[],[],[],[],[]
+            return [],[],[],[],[]
     Time = []
     TS = []
     Flux = []
