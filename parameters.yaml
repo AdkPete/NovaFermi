@@ -8,6 +8,7 @@ params:
   peak: year-mm-dd hh:mm:ss # Peak date and time (UTC)
   data_path: data/ # Path to data files for this source
   figdir: Figures/ # Directory to save figures to
+  input_model: None
 
   # General Analysis Parameters:
 

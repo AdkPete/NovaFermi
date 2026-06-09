@@ -190,7 +190,7 @@ def load_data(params , compile_csv = None):
         compiled_csv = params["lc_outdir"] + params["name"] + f"_{int(params['window'])}_lcdata.csv"
         if not os.path.exists(compiled_csv):
             print ("No LC data found, exiting")
-            return [],[],[],[],[],[]
+            return [],[],[],[],[]
     Time = []
     TS = []
     Flux = []
@@ -447,6 +447,9 @@ def TS_Grid(params):
     
     ## Print some useful stats
     ii = np.where(np.array(TS) >= 9)
+    if len(ii[0]) == 0:
+        print ("No significant bins detected")
+        return 0
     print ("Maximum flux in a significantly detected bin")
     
     print (np.max(np.array(Flux)[ii]))
