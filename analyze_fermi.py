@@ -159,6 +159,7 @@ def read_parameters(pfile):
     _______
     params : dict : contains all analysis options and parameters
     '''
+    
     with open(pfile, 'r') as f:
         config = yaml.safe_load(f)
         params = config["params"]
@@ -189,6 +190,17 @@ def read_parameters(pfile):
             if "outdir" in i or "figdir" in i:
                 if not os.path.exists(params[i]):
                     os.mkdir(params[i])
+        cal_dir = params["cal_dir"]
+        vns = []
+        for i in os.listdir(cal_dir):
+            if "gll_psc" in i and ".xml" in i:
+                vnumb = int(i.split("gll_psc_")[1].split(".xml")[0].replace("v",""))
+                vns.append(vnumb)
+        if len(vns) == 0:
+            print ("No source catalogs found in cal_dir. Please add a catalog and try again.")
+            sys.exit()
+        params["source_cat"] = cal_dir + f"gll_psc_v{max(vns)}.xml"
+        breakpoint()
         return params
 
 def print_params(params):
@@ -226,13 +238,13 @@ def gen_model(params, fheader, lock=None, outdir = "./"):
     '''
     
     
-    dfname = params["cal_dir"] + "gll_psc_v32.xml"
+    
     gti = outdir + f"{params['name']}{fheader}_filtered_gti.fits"
     model_fname = params["input_model"]
     
     if os.path.exists(model_fname):
         return 0
-    xml_command = f' make4FGLxml {dfname} --event_file {gti} --output_name '
+    xml_command = f' make4FGLxml {params["source_cat"]} --event_file {gti} --output_name '
     xml_command += f'{model_fname} --free_radius 5.0 --norms_free_only '
     xml_command += f'True --sigma_to_free 25 --variable_free True'
     subprocess.run(xml_command, shell=True)
