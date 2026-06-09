@@ -200,7 +200,7 @@ def read_parameters(pfile):
             print ("No source catalogs found in cal_dir. Please add a catalog and try again.")
             sys.exit()
         params["source_cat"] = cal_dir + f"gll_psc_v{max(vns)}.xml"
-        breakpoint()
+        
         return params
 
 def print_params(params):
