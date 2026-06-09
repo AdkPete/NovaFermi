@@ -1,6 +1,24 @@
 import xml.etree.ElementTree as ET
 from astropy.io import fits
 
+# todo for integration into analysis pipeline:
+# 1. Port these two functions into analyze_fermi.py
+# Everything next happens inside the gen_model function of analyze fermi.
+# call load_source_cat. Can get the source cat filename from the param array
+# call prune_model
+# Update name of input model in param array to the new xml file
+
+## That should get this running. Next up are a few updates to make this really
+# do what we want it to do.
+
+# 1. Change name of pruned_model.xml to include name of nova and match other filenames
+# 2. Adjust cuts to keep any source with Variability_index > 30.58
+# 3. Adjust cuts to keep any source with ROI_Center < 10
+# 4. From the energy flux, calculate expected number of photons from each source
+        ## assuming all photons arrive with E = 100 MeV (maximizes number of photons for a given energy flux)
+# 5. Remove sources with 10 < ROI_Center < 15 and expected number of photons < 0.1
+# 6. Remove sources with ROI_Center > 15 with expected number of photons < 0.5
+
 
 def load_source_cat(cat_fname):
     '''
