@@ -371,7 +371,7 @@ def gen_srcmap(params, clobber, fheader, lock=None, outdir = "./"):
     None
     '''
     src_name = outdir + f'{params["name"]}{fheader}_srcmap.fits'
-    my_apps.srcMaps['expcube'] = outdir + f'{params["name"]}{fheader}_ltcube.fits'
+    my_apps.srcMaps['expcube'] = outdir + f'{params["name"]}{fheader}_ltCube.fits'
     my_apps.srcMaps['cmap'] = outdir + f'{params["name"]}{fheader}_filtered_ccube.fits'
     my_apps.srcMaps['srcmdl'] = params["input_model"]
     my_apps.srcMaps['bexpmap'] = outdir + f'{params["name"]}{fheader}_BinnedExpMap.fits'
@@ -495,7 +495,7 @@ def fit_model(params, fheader, get_like, inmod = "No" , opt = 'NewMINUIT', silen
     
     obs = BinnedObs(srcMaps=src_name,
             binnedExpMap=f'{outdir}{params["name"]}{fheader}_BinnedExpMap.fits',
-            expCube=f'{outdir}{params["name"]}{fheader}_ltcube.fits',irfs='P8R3_SOURCE_V3')
+            expCube=f'{outdir}{params["name"]}{fheader}_ltCube.fits',irfs='P8R3_SOURCE_V3')
     # // like = BinnedAnalysis(obs,f'{outdir}temp{fheader}.xml',optimizer=opt)
     like = BinnedAnalysis(obs,f'{inmod}',optimizer="DRMNFB")
     likeobj=pyLike.NewMinuit(like.logLike)
@@ -733,7 +733,7 @@ def FermiTools_UpperLim(params, fheader, outdir = "./"):
                 params["name"], mod)
     obs = BinnedObs(srcMaps=f"{outdir}{params['name']}{fheader}_srcmap.fits",
                 binnedExpMap=f'{outdir}{params["name"]}{fheader}_BinnedExpMap.fits',
-                expCube=f'{outdir}{params["name"]}{fheader}_ltcube.fits',
+                expCube=f'{outdir}{params["name"]}{fheader}_ltCube.fits',
                 irfs='P8R3_SOURCE_V3')
     like = BinnedAnalysis(obs,f'{outdir}upper_lim_model{fheader}.xml')
     like.fit(verbosity=3)
@@ -1146,7 +1146,7 @@ def compute_upper_lim(params, fheader, outdir = "./"):
     
     obs = BinnedObs(srcMaps=src_name,
         binnedExpMap=f'{outdir}{params["name"]}{fheader}_BinnedExpMap.fits',
-        expCube=f'{outdir}{params["name"]}{fheader}_ltcube.fits',irfs='P8R3_SOURCE_V3')
+        expCube=f'{outdir}{params["name"]}{fheader}_ltCube.fits',irfs='P8R3_SOURCE_V3')
     like = BinnedAnalysis(obs,f'{outdir}ul{fheader}.xml',optimizer=opt)
     likeobj=pyLike.NewMinuit(like.logLike)
 
@@ -1439,7 +1439,7 @@ def generate_residuals(params, clobber, fheader, lock=None,outdir = "./"):
     mmc += f"srcmdl={outdir}fit_model{fheader}.xml "
     mmc += f"outfile={outdir}{params['name']}_Model{fheader}.fits "
     mmc += "irfs=CALDB "
-    mmc += f"expcube={outdir}{params['name']}{fheader}_ltcube.fits "
+    mmc += f"expcube={outdir}{params['name']}{fheader}_ltCube.fits "
     mmc += f"bexpmap={outdir}{params['name']}{fheader}_BinnedExpMap.fits"
     print (mmc)
     if not os.path.exists(f"{outdir}{params['name']}_Model{fheader}.fits") or clobber:
