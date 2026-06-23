@@ -291,8 +291,7 @@ def prune_model(model_fname, params):
             bad_sources.append(source)
 
     for sr in bad_sources:
-        root.remove(sr)
-    breakpoint()    
+        root.remove(sr)  
     print ("There are ", len(root), " sources  in the model file.")
     ## Save new model file
     tree.write(params['name'] + "_pruned_model.xml")
