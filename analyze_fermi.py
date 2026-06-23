@@ -982,7 +982,17 @@ def light_curve_singleproc(params, clobber, log = "mp_log"):
         
     time = np.array(time)
     Flux = np.array(Flux)
-    u
+    unc = np.array(unc)
+    ts = np.array(ts)
+    tpeak = np.array(tpeak)
+
+    det = np.where(ts >=4)
+    lim = np.where(ts < 4)
+    plt.scatter(tpeak[det] , Flux[det], color = "blue")
+    plt.errorbar(tpeak[det] , Flux[det] , unc[det] , ls = 'none', color = "blue")
+    plt.scatter(tpeak[lim] , Flux[lim] , color = "orange" , marker = "v")
+    plt.xlabel("Time since peak (days)")
+    plt.ylabel("Flux (ph / s / cm$^{-2}$)")
     plt.savefig(params["figdir"] + "LC.pdf")
     plt.close()
     
