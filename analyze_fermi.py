@@ -242,8 +242,10 @@ def gen_model(params, fheader, lock=None, outdir = "./"):
     gti = outdir + f"{params['name']}{fheader}_filtered_gti.fits"
     model_fname = params["input_model"]
     
-    if os.path.exists(model_fname):
+    
+    if not os.path.exists(model_fname):
         return 0
+    
     xml_command = f' make4FGLxml {params["source_cat"]} --event_file {gti} --output_name '
     xml_command += f'{model_fname} --free_radius 5.0 --norms_free_only '
     xml_command += f'True --sigma_to_free 25 --variable_free True'
@@ -534,6 +536,8 @@ def fit_model(params, fheader, get_like, inmod = "No" , opt = 'NewMINUIT', silen
             checklocks(lock)
             res = like.fit(verbosity=1)
     print("Source Convergence Status" , likeobj.getRetCode())
+    
+
     if get_like:
         
         return res , like.flux(params["name"] , emin = params["emin"]) , like.model[params["name"]].funcs["Spectrum"]["Prefactor"]
@@ -546,6 +550,46 @@ def fit_model(params, fheader, get_like, inmod = "No" , opt = 'NewMINUIT', silen
     
     return Nova_flux , Nova_flux_err , TS
 
+def get_counts(params, fheader, outdir):
+    
+    inmod =params["input_model"]
+    src_name = outdir + f'{params["name"]}{fheader}_srcmap.fits'
+    
+    
+    obs = BinnedObs(srcMaps=src_name,
+            binnedExpMap=f'{outdir}{params["name"]}{fheader}_BinnedExpMap.fits',
+            expCube=f'{outdir}{params["name"]}{fheader}_ltcube.fits',irfs='P8R3_SOURCE_V3')
+    # // like = BinnedAnalysis(obs,f'{outdir}temp{fheader}.xml',optimizer=opt)
+    like = BinnedAnalysis(obs,f'{inmod}',optimizer="DRMNFB")
+    likeobj=pyLike.NewMinuit(like.logLike)
+
+    like.tol = 0.01
+    
+    checklocks(lock)
+    res = like.fit(verbosity=1,covar=True,optObject=likeobj)
+    like.optimizer = "NewMinuit"
+    
+    try:
+        like.tol = 0.0001
+        checklocks(lock)
+        res = like.fit(verbosity=1,covar=True,optObject=likeobj)
+    except:
+        try:
+            like.tol = 0.01
+            checklocks(lock)
+            res = like.fit(verbosity=1,covar=True,optObject=likeobj)
+        except:
+            like = BinnedAnalysis(obs,inmod,optimizer="DRMNFB")
+            likeobj=pyLike.NewMinuit(like.logLike)
+            like.tol = 0.01
+            checklocks(lock)
+            res = like.fit(verbosity=1)
+    print("Source Convergence Status" , likeobj.getRetCode())
+    
+    src_counts = {}
+    for name in like.sourceNames():
+        src_counts[name] = like._srcCnts(name)
+    
 def checklocks(lock):
     '''
     Function to manage multiprocessing locks. Intended to make sure that
@@ -560,7 +604,7 @@ def checklocks(lock):
         with lock:
             time.sleep(1)
             
-def binned_likelihood(params, tstart , tend , clobber = False, fheader = "", silent=False, lock = None, outdir = "./"):
+def binned_likelihood(params, tstart , tend , clobber = False, fheader = "", silent=False, lock = None, outdir = "./", get_counts = False):
     '''
     Function to run the full binned likelihood analysis pipeline
     Will run this once, and produces a TS value, and a flux
@@ -578,7 +622,8 @@ def binned_likelihood(params, tstart , tend , clobber = False, fheader = "", sil
     None
     '''
     
-    
+    if get_counts:
+        breakpoint()
     runlogname = "runlog" + fheader + ".log"
     
     if params["runlog"]:
@@ -622,6 +667,11 @@ def binned_likelihood(params, tstart , tend , clobber = False, fheader = "", sil
         rf = open(runlogname , "a")
         rf.write("Fitting Source Model\n")
         rf.close()
+        
+
+    if get_counts:
+        src_counts = get_counts(params, fheader, outdir)
+        return src_counts
     
     Flux , error , TS = fit_model(params , fheader, False, silent=silent,lock=lock, outdir = outdir)
     
@@ -825,6 +875,7 @@ def likelihood_wrapper(run_pars):
     F2 = -99
     if ts < run_pars[0]["ts_lim"] and run_pars[0]["up_lim_lc"]:
         try:
+            
             F , Flow , Fhigh , DeltaLogL = compute_upper_lim(run_pars[0] , run_pars[4], outdir = run_pars[7])
             
             unc = -1
