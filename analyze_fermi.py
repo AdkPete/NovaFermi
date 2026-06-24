@@ -222,7 +222,82 @@ def print_params(params):
         rows.append([key,str(params[key])])
     print (tabulate.tabulate(rows) + "\n")
 
-def gen_model(params, fheader, lock=None, outdir = "./"):
+def load_source_cat(cat_fname):
+    '''
+    Function to load source catalog into a dictionary for easy access
+    to the parameters that we care about
+    '''
+    tree = ET.parse(cat_fname)
+    root = tree.getroot()
+    source_cat = {}
+    for source in root:
+        name = source.get("name")
+        fl = source.get("Energy_Flux100")
+        var = source.get("Variability_Index")
+        tsval  = source.get("TS_Value")
+        source_cat[name] = {"fl100": fl, "var": var, "tsval": tsval}
+    return source_cat
+
+def prune_model(model_fname, params):
+
+    if not os.path.exists('prune_files'):
+        os.mkdir('prune_files')
+
+    src_counts = binned_likelihood(params, tpeak_to_met(params['earliest_time'], params) , tpeak_to_met(params['latest_time'], params), 
+    clobber = False, fheader = "prune", silent=False, lock = None, outdir = "prune_files/", compute_counts = True, skip_pruning = True)
+
+    source_cat = load_source_cat(params['source_cat'])
+    tree = ET.parse(model_fname)
+    root = tree.getroot()
+
+    print ("There are ", len(root), " sources in the model file.")
+    bad_sources = []
+    for source in root:
+    
+        spec = source.find("spectrum")
+        spat = source.find("spatialModel")
+
+        ROI_Center = source.get("ROI_Center_Distance")
+
+        name = source.get('name')
+        if name == (params['name']):
+            continue
+        if name not in source_cat.keys():
+            print(name, 'is not in the source catalog')
+            continue
+        variability = float(source_cat[name]['var'])
+        counts = src_counts[name]
+
+        if ROI_Center is None:
+            ROI_Center = 0.0
+            ## Is our nova, leave in file
+
+            continue
+        # if variability index is the number in other code then its good. Code runs on photons need that from Peter (now)
+
+        if float(ROI_Center) < 10:
+            ## Too far from our nova, remove from file
+            continue
+        
+        if variability > 30.58:
+            continue
+        
+        if float(ROI_Center) > 10 and float(ROI_Center) < 15 and counts < 0.1:
+            print (f"Removing {source.get('name')} from model file. ROI_Center_Distance = {ROI_Center}")           
+            bad_sources.append(source)
+        
+        if float(ROI_Center) >= 15 and counts < 0.5:
+            print (f"Removing {source.get('name')} from model file. ROI_Center_Distance = {ROI_Center}")           
+            bad_sources.append(source)
+
+    for sr in bad_sources:
+        root.remove(sr)  
+    print ("There are ", len(root), " sources  in the model file.")
+    ## Save new model file
+    tree.write(params['name'] + "_pruned_model.xml")
+
+
+def gen_model(params, fheader, lock=None, outdir = "./", skip_pruning = False):
     '''
     Function to create an input model file
     Note: This function will not overwrite an existing input model.
@@ -241,22 +316,29 @@ def gen_model(params, fheader, lock=None, outdir = "./"):
     
     gti = outdir + f"{params['name']}{fheader}_filtered_gti.fits"
     model_fname = params["input_model"]
-    
-    
-    if not os.path.exists(model_fname):
+    pruned_fname = outdir + f"{params['name']}_pruned_model.xml"
+
+    if os.path.exists(params['name'] + "_pruned_model.xml"):
+        params['input_model'] = params['name'] + "_pruned_model.xml"
         return 0
-    
-    xml_command = f' make4FGLxml {params["source_cat"]} --event_file {gti} --output_name '
-    xml_command += f'{model_fname} --free_radius 5.0 --norms_free_only '
-    xml_command += f'True --sigma_to_free 25 --variable_free True'
-    subprocess.run(xml_command, shell=True)
-    if not os.path.exists(f'{model_fname}'):
-        print (xml_command)
-        message = "make4FGLxml not successful; please run the above command "
-        message += "and edit as needed, then hit enter:"
-        input(message)
-    else:
-        input("Please edit input_model to include source models. Then, hit enter")
+
+    if not os.path.exists(model_fname):
+        xml_command = f' make4FGLxml {params["source_cat"]} --event_file {gti} --output_name '
+        xml_command += f'{model_fname} --free_radius 5.0 --norms_free_only '
+        xml_command += f'True --sigma_to_free 25 --variable_free True'
+        subprocess.run(xml_command, shell=True)
+        if not os.path.exists(f'{model_fname}'):
+            print (xml_command)
+            message = "make4FGLxml not successful; please run the above command "
+            message += "and edit as needed, then hit enter:"
+            input(message)
+        else:
+            input("Please edit input_model to include source models. Then, hit enter")
+    if not os.path.exists(pruned_fname) and not skip_pruning:
+        scat = load_source_cat(params["source_cat"])
+        prune_model(model_fname, params)
+        params['input_model'] = params['name'] + "_pruned_model.xml"
+
     
 def data_selection(params, tstart, tend, clobber, fheader, lock=None, outdir = "./"):
     '''
@@ -385,7 +467,7 @@ def gen_srcmap(params, clobber, fheader, lock=None, outdir = "./"):
     None
     '''
     src_name = outdir + f'{params["name"]}{fheader}_srcmap.fits'
-    my_apps.srcMaps['expcube'] = outdir + f'{params["name"]}{fheader}_ltcube.fits'
+    my_apps.srcMaps['expcube'] = outdir + f'{params["name"]}{fheader}_ltCube.fits'
     my_apps.srcMaps['cmap'] = outdir + f'{params["name"]}{fheader}_filtered_ccube.fits'
     my_apps.srcMaps['srcmdl'] = params["input_model"]
     my_apps.srcMaps['bexpmap'] = outdir + f'{params["name"]}{fheader}_BinnedExpMap.fits'
@@ -509,7 +591,7 @@ def fit_model(params, fheader, get_like, inmod = "No" , opt = 'NewMINUIT', silen
     
     obs = BinnedObs(srcMaps=src_name,
             binnedExpMap=f'{outdir}{params["name"]}{fheader}_BinnedExpMap.fits',
-            expCube=f'{outdir}{params["name"]}{fheader}_ltcube.fits',irfs='P8R3_SOURCE_V3')
+            expCube=f'{outdir}{params["name"]}{fheader}_ltCube.fits',irfs='P8R3_SOURCE_V3')
     # // like = BinnedAnalysis(obs,f'{outdir}temp{fheader}.xml',optimizer=opt)
     like = BinnedAnalysis(obs,f'{inmod}',optimizer="DRMNFB")
     likeobj=pyLike.NewMinuit(like.logLike)
@@ -536,8 +618,6 @@ def fit_model(params, fheader, get_like, inmod = "No" , opt = 'NewMINUIT', silen
             checklocks(lock)
             res = like.fit(verbosity=1)
     print("Source Convergence Status" , likeobj.getRetCode())
-    
-
     if get_like:
         
         return res , like.flux(params["name"] , emin = params["emin"]) , like.model[params["name"]].funcs["Spectrum"]["Prefactor"]
@@ -550,15 +630,15 @@ def fit_model(params, fheader, get_like, inmod = "No" , opt = 'NewMINUIT', silen
     
     return Nova_flux , Nova_flux_err , TS
 
-def get_counts(params, fheader, outdir):
-    
+def get_counts(params, fheader, outdir, opt = 'NewMINUIT', silent=False, lock=None):
+
     inmod =params["input_model"]
+
     src_name = outdir + f'{params["name"]}{fheader}_srcmap.fits'
-    
     
     obs = BinnedObs(srcMaps=src_name,
             binnedExpMap=f'{outdir}{params["name"]}{fheader}_BinnedExpMap.fits',
-            expCube=f'{outdir}{params["name"]}{fheader}_ltcube.fits',irfs='P8R3_SOURCE_V3')
+            expCube=f'{outdir}{params["name"]}{fheader}_ltCube.fits',irfs='P8R3_SOURCE_V3')
     # // like = BinnedAnalysis(obs,f'{outdir}temp{fheader}.xml',optimizer=opt)
     like = BinnedAnalysis(obs,f'{inmod}',optimizer="DRMNFB")
     likeobj=pyLike.NewMinuit(like.logLike)
@@ -585,11 +665,12 @@ def get_counts(params, fheader, outdir):
             checklocks(lock)
             res = like.fit(verbosity=1)
     print("Source Convergence Status" , likeobj.getRetCode())
-    
-    src_counts = {}
+
+    src_counts ={}
     for name in like.sourceNames():
-        src_counts[name] = like._srcCnts(name)
-    
+        src_counts[name] = np.sum(like._srcCnts(name))
+    return src_counts
+
 def checklocks(lock):
     '''
     Function to manage multiprocessing locks. Intended to make sure that
@@ -604,7 +685,9 @@ def checklocks(lock):
         with lock:
             time.sleep(1)
             
-def binned_likelihood(params, tstart , tend , clobber = False, fheader = "", silent=False, lock = None, outdir = "./", get_counts = False):
+def binned_likelihood(params, tstart , tend , clobber = False, fheader = "", silent=False, lock = None, outdir = "./",
+compute_counts = False, skip_pruning = False):
+
     '''
     Function to run the full binned likelihood analysis pipeline
     Will run this once, and produces a TS value, and a flux
@@ -622,8 +705,7 @@ def binned_likelihood(params, tstart , tend , clobber = False, fheader = "", sil
     None
     '''
     
-    if get_counts:
-        breakpoint()
+    
     runlogname = "runlog" + fheader + ".log"
     
     if params["runlog"]:
@@ -654,7 +736,7 @@ def binned_likelihood(params, tstart , tend , clobber = False, fheader = "", sil
         rf.write("Getting Source Model\n")
         rf.close()
     
-    gen_model(params, fheader, lock, outdir = outdir)
+    gen_model(params, fheader, lock, outdir = outdir, skip_pruning = skip_pruning)
     
     if params["runlog"]:
         rf = open(runlogname , "a")
@@ -667,12 +749,9 @@ def binned_likelihood(params, tstart , tend , clobber = False, fheader = "", sil
         rf = open(runlogname , "a")
         rf.write("Fitting Source Model\n")
         rf.close()
-        
-
-    if get_counts:
+    if compute_counts:
         src_counts = get_counts(params, fheader, outdir)
-        return src_counts
-    
+        return(src_counts)
     Flux , error , TS = fit_model(params , fheader, False, silent=silent,lock=lock, outdir = outdir)
     
     if params["runlog"]:
@@ -795,7 +874,7 @@ def FermiTools_UpperLim(params, fheader, outdir = "./"):
                 params["name"], mod)
     obs = BinnedObs(srcMaps=f"{outdir}{params['name']}{fheader}_srcmap.fits",
                 binnedExpMap=f'{outdir}{params["name"]}{fheader}_BinnedExpMap.fits',
-                expCube=f'{outdir}{params["name"]}{fheader}_ltcube.fits',
+                expCube=f'{outdir}{params["name"]}{fheader}_ltCube.fits',
                 irfs='P8R3_SOURCE_V3')
     like = BinnedAnalysis(obs,f'{outdir}upper_lim_model{fheader}.xml')
     like.fit(verbosity=3)
@@ -875,7 +954,6 @@ def likelihood_wrapper(run_pars):
     F2 = -99
     if ts < run_pars[0]["ts_lim"] and run_pars[0]["up_lim_lc"]:
         try:
-            
             F , Flow , Fhigh , DeltaLogL = compute_upper_lim(run_pars[0] , run_pars[4], outdir = run_pars[7])
             
             unc = -1
@@ -1209,7 +1287,7 @@ def compute_upper_lim(params, fheader, outdir = "./"):
     
     obs = BinnedObs(srcMaps=src_name,
         binnedExpMap=f'{outdir}{params["name"]}{fheader}_BinnedExpMap.fits',
-        expCube=f'{outdir}{params["name"]}{fheader}_ltcube.fits',irfs='P8R3_SOURCE_V3')
+        expCube=f'{outdir}{params["name"]}{fheader}_ltCube.fits',irfs='P8R3_SOURCE_V3')
     like = BinnedAnalysis(obs,f'{outdir}ul{fheader}.xml',optimizer=opt)
     likeobj=pyLike.NewMinuit(like.logLike)
 
@@ -1502,7 +1580,7 @@ def generate_residuals(params, clobber, fheader, lock=None,outdir = "./"):
     mmc += f"srcmdl={outdir}fit_model{fheader}.xml "
     mmc += f"outfile={outdir}{params['name']}_Model{fheader}.fits "
     mmc += "irfs=CALDB "
-    mmc += f"expcube={outdir}{params['name']}{fheader}_ltcube.fits "
+    mmc += f"expcube={outdir}{params['name']}{fheader}_ltCube.fits "
     mmc += f"bexpmap={outdir}{params['name']}{fheader}_BinnedExpMap.fits"
     print (mmc)
     if not os.path.exists(f"{outdir}{params['name']}_Model{fheader}.fits") or clobber:
