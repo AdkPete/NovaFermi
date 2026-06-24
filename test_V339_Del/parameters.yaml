@@ -24,9 +24,9 @@ params:
 
   gen_av: True # Generate average likelihood fit
   find_mts: False # Run search for maximum TS value.
-  gen_ts: True # Generate TS maps
-  gen_lc: True # Build a light curve
-  gen_grid: True # Build Duration / TS Search Grid
+  gen_ts: False # Generate TS maps
+  gen_lc: False # Build a light curve
+  gen_grid: False # Build Duration / TS Search Grid
 
   # Average model fit parameters. Only runs if gen_av is True
   # Note that all times are in days relative to the peak defined above
