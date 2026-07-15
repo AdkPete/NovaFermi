@@ -26,6 +26,9 @@ test_V339_Del/ts_search_dir/
 test_V339_Del/Figures/
 test_V339_Del/grid_results/
 test_V339_Del/reset.sh
+test_V906_Car/grid_results/
+test_V906_Car/lc_results/
+test_V906_Car/prune_files/
 mkdocs.sh
 docs/*
 .DS_Store
