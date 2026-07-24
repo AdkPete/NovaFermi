@@ -1031,7 +1031,7 @@ def light_curve_singleproc(params, clobber, log = "mp_log"):
         et = t + window_half_seconds
         param_row = [params, st, et, clobber, fheader, log, None, lcdir]
         param_row.append( params["cleanlc"])
-        log_file = param_row[7] + param_row[4] + param_row[5] + ".csv"
+        log_file = param_row[7] + param_row[5] + param_row[4] + ".csv"
         if not os.path.exists(log_file):
             
             param_array.append(param_row)
@@ -1115,7 +1115,7 @@ def light_curve_multiproc(params , clobber, log="mp_log"):
             et = t + window_half_seconds
             param_row = [params, st, et, clobber, fheader, log, lock, lcdir]
             param_row.append( params["cleanlc"])
-            log_file = param_row[7] + param_row[4] + param_row[5] + ".csv"
+            log_file = param_row[7] + param_row[5] + param_row[4] + ".csv"
             if not os.path.exists(log_file) or clobber:
                 
                 param_array.append(param_row)
@@ -1208,7 +1208,8 @@ def false_positive_rate(params, clobber, log = "mp_log"):
             et = t + window_half_seconds
             param_row = [params, st, et, clobber, fheader, log, lock, lcdir]
             param_row.append( params["cleanlc"])
-            log_file = param_row[7] + param_row[4] + param_row[5] + ".csv"
+            param_row.append( params["cleanlc"])
+            log_file = param_row[7] + param_row[5] + param_row[4] + ".csv"
             if not os.path.exists(log_file) or clobber:
                 
                 param_array.append(param_row)
