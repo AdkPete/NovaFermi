@@ -1165,6 +1165,70 @@ def light_curve_multiproc(params , clobber, log="mp_log"):
     
     return results
 
+def false_positive_rate(params, clobber, log = "mp_log"):
+    '''
+    Function to compute the false positive rate for a given nova
+    This is done by running a light curve analysis on a set of
+    time windows prior to the eruption, and then measuring the distribution
+    of the test statistics (TS) in those windows. This is a simple way to
+    estimate the false positive rate for a given nova, and can be used
+    to estimate the significance of any detections in the light curve.
+    
+    Parameters
+    __________
+    params : dict : parameter dict from read_parameters
+    clobber : boolean : If true, overwrite existing files
+    log : string : base file name to load data
+    
+    Returns
+    ________
+    None
+    '''
+    
+    start = tpeak_to_met(params["bck_start"], params)
+    end = tpeak_to_met(params["bck_end"], params)
+    lcdir = params["bck_outdir"]
+        # // log =  log
+        ## Start by setting up our parameter array
+    param_array = []
+    
+    window_half_seconds = 12 * 60 * 60 * params["window"]
+    step_seconds = window_half_seconds * 2.0 ## No overlap for this analysis
+    
+    t = start + step_seconds / 2.0
+    tpeak_start = met_to_tpeak(start, params)
+
+    with mp.Manager() as manager:
+        lock = manager.Lock()
+        id = 0
+        while t < end:
+
+            fheader = f"_{params['window']}_{params['lcstep']}_{tpeak_start}_st{id}"
+            st = t - window_half_seconds
+            et = t + window_half_seconds
+            param_row = [params, st, et, clobber, fheader, log, lock, lcdir]
+            param_row.append( params["cleanlc"])
+            log_file = param_row[7] + param_row[4] + param_row[5] + ".csv"
+            if not os.path.exists(log_file) or clobber:
+                
+                param_array.append(param_row)
+            t += step_seconds
+            id += 1
+
+        ## maxtasksperchild = 1 is designed to resolve a memory usage problem
+        ## Probably mildly inneficient, but better than consuming many GB of
+        ## RAM per process.
+        print (len(param_array))
+        
+        
+        results = []
+        with mp.Pool(processes=params["nproc"], maxtasksperchild=1) as p:
+            imres = p.imap(likelihood_wrapper , param_array, chunksize=1)
+            for res in imres:
+                results.append(res)
+    np.save(log + ".npy" , results)
+    return results
+
 def gen_ul_xml(input_file, output_file, name , smodel):
     '''
     Simple function to setup the UL xml files
@@ -1759,6 +1823,10 @@ def run_analysis(parameters):
         end = time.time()
         
         print (f"Total light curve runtime was {(end-start)/60} minues")
+        
+    if "gen_bck" in params.keys() and params["gen_bck"]:
+        
+        false_positive_rate(params , params["clobber"])
         
     if params["gen_grid"]:
         
