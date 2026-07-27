@@ -916,8 +916,9 @@ def likelihood_wrapper(run_pars):
     Flux , Flux_Error , TS
     '''
 
-    
-    log_file = run_pars[7] + run_pars[5] + run_pars[4] +  ".csv"
+    center_t = (run_pars[1] + run_pars[2]) / 2.0
+    center_t = met_to_tpeak(center_t, run_pars[0])
+    log_file = run_pars[7] + run_pars[5] + run_pars[4] +  f"_${int(center_t)}_.csv"
     
     try:
         F , unc , ts = binned_likelihood(*run_pars[0:5], lock = run_pars[6], outdir = run_pars[7])
@@ -1031,7 +1032,8 @@ def light_curve_singleproc(params, clobber, log = "mp_log"):
         et = t + window_half_seconds
         param_row = [params, st, et, clobber, fheader, log, None, lcdir]
         param_row.append( params["cleanlc"])
-        log_file = param_row[7] + param_row[5] + param_row[4] + ".csv"
+        center_t = met_to_tpeak(t , params)
+        log_file = param_row[7] + param_row[5] + param_row[4] + f"_${int(center_t)}_.csv"
         if not os.path.exists(log_file):
             
             param_array.append(param_row)
@@ -1115,7 +1117,8 @@ def light_curve_multiproc(params , clobber, log="mp_log"):
             et = t + window_half_seconds
             param_row = [params, st, et, clobber, fheader, log, lock, lcdir]
             param_row.append( params["cleanlc"])
-            log_file = param_row[7] + param_row[5] + param_row[4] + ".csv"
+            center_t = met_to_tpeak(t , params)
+            log_file = param_row[7] + param_row[5] + param_row[4] + f"_${int(center_t)}_.csv"
             if not os.path.exists(log_file) or clobber:
                 
                 param_array.append(param_row)
@@ -1209,7 +1212,8 @@ def false_positive_rate(params, clobber, log = "mp_log"):
             param_row = [params, st, et, clobber, fheader, log, lock, lcdir]
             param_row.append( params["cleanlc"])
             param_row.append( params["cleanlc"])
-            log_file = param_row[7] + param_row[5] + param_row[4] + ".csv"
+            center_t = met_to_tpeak(t , params)
+            log_file = param_row[7] + param_row[5] + param_row[4] + f"_${int(center_t)}_.csv"
             if not os.path.exists(log_file) or clobber:
                 
                 param_array.append(param_row)
