@@ -75,6 +75,8 @@ def plot_TS_search(params):
     plt.gca().xaxis.set_ticks_position('both')
     plt.savefig(params["figdir"] + "Fit_Monitor.pdf")
     plt.close()
+    
+
 def plot_light_curve(params, display=False, compile_csv = None):
     '''
     Function to plot light curve results from analyze_fermi
@@ -97,7 +99,8 @@ def plot_light_curve(params, display=False, compile_csv = None):
     None
     '''
 
-    Time , TS , Unc , Flux , ww = load_data(params , compile_csv)
+    Time , TS , Unc , Flux , st, end = read_results(params["lc_logfile"])
+    
     if len(Time) == 0:
         return 0
         
@@ -111,8 +114,11 @@ def plot_light_curve(params, display=False, compile_csv = None):
     TS = TS[ii]
     Unc = Unc[ii]
     Flux = Flux[ii]
+    st = st[ii]
+    end = end[ii]
+    
     #ul2 = ul2[ii]
-    ww = ww[ii]
+    ww = (end[ii] - st[ii]) / (24 * 60 * 60)
     if len(Time) == 0:
         return 0
     
@@ -185,8 +191,86 @@ def plot_light_curve(params, display=False, compile_csv = None):
     plt.savefig(params["figdir"] + "ULS.pdf")
     plt.close()
 
-def load_data(params , compile_csv = None):
-    if compile_csv is None:
+def compile_bck_data(params):
+    '''
+    Utility function to compile all of the multi-processing logs into 
+    a singular csv file.
+    
+    Parameters
+    __________
+    
+    params : dict : parameter dict from read_parameters
+    
+    Returns
+    _______
+    None
+    
+    '''
+    
+    if "bck_outdir" not in params.keys():
+        return 0
+
+    output = params["bck_outdir"] + params["name"] + "bck_data.csv"
+    
+    
+    dir = params["bck_outdir"] 
+    Flux = []
+    Unc = []
+    Time = []
+    TS = []
+    METs = []
+    
+    for i in os.listdir(dir):
+        fname = os.path.join(dir , i)
+        if ".csv" not in fname or "mp" not in fname or str(params["window"]) not in fname or str(params["lcstep"]) not in fname:
+            continue
+        elif "grid" in fname:
+            continue
+        f = open(fname)
+        for line in f.readlines():
+            split_line = line.split(",")
+            Flux.append(float(split_line[0]))
+            Unc.append(float(split_line[1]))
+            TS.append(float(split_line[2]))
+            MET = float(split_line[3])
+            METs.append(MET)
+            tpeak = af.met_to_tpeak(MET , params)
+            Time.append(tpeak)
+            break
+        
+    METs = np.array(METs)
+    TS = np.array(TS)
+    Flux = np.array(Flux)
+    Unc = np.array(Unc)
+    Time = np.array(Time)
+    
+    
+    if len(METs) == 0:
+        print ("No LC Data Found, exiting now")
+        return 0
+    isort = np.argsort(Time)
+    out_file = open(output, "w")
+    
+    header = "Time since peak (days),Fermi MET (seconds),TS,Flux,Flux"
+    header += " Uncertainty\n"
+    out_file.write(header)
+    
+    for ind in isort:
+        csv_line = f"{Time[ind]},{METs[ind]},{TS[ind]},{Flux[ind]},{Unc[ind]}"#//,{ULS[ind]}"
+        out_file.write(csv_line + "\n")
+    out_file.close()
+    
+    return 0
+
+def load_bck_data(params):
+    
+    '''
+    Function to load background data
+    '''
+    
+    return 0
+def load_data(params , compiled_csv = None):
+    if compiled_csv is None:
         compiled_csv = params["lc_outdir"] + params["name"] + f"_{int(params['window'])}_lcdata.csv"
         if not os.path.exists(compiled_csv):
             print ("No LC data found, exiting")
@@ -220,6 +304,38 @@ def load_data(params , compile_csv = None):
         print ("Warning: At least one Likelihood calculation Failed, F < 0")
     return Time[ii] , TS[ii] , Unc[ii] , Flux[ii] , ww[ii]
 
+def read_results(fname):
+    
+
+    f = open(fname)
+    
+    TS = []
+    Flux = []
+    Unc = []
+    Time = []
+    st = []
+    et = []
+    
+    for i in f.readlines():
+        if "TS" in i:
+            continue
+        sl = i.split(",")
+        
+        Flux.append(float(sl[0]))
+        Unc.append(float(sl[1]))
+        TS.append(float(sl[2]))
+        Time.append(float(sl[3]))
+        st.append(float(sl[4]))
+        et.append(float(sl[5]))
+    
+    TS = np.array(TS)
+    Flux = np.array(Flux)
+    Unc = np.array(Unc)
+    Time = np.array(Time)
+    st = np.array(st)
+    et = np.array(et)
+    return TS , Flux , Unc , Time , st , et
+
 def TS_hist(params, compile_csv = None):
     
     '''
@@ -231,21 +347,25 @@ def TS_hist(params, compile_csv = None):
     TS values are behaving as expected.
     '''
     
-    Time , TS , Unc , Flux , ww = load_data(params , compile_csv)
-    if len(Time) == 0:
-        return
-    if np.min(Time) >= -60:
-        ## No suitable background data
-        print ("No background runs detected")
+    if "bck_outdir" not in params.keys():
+        print ("No Background directory specified, exiting")
         return 0
     
-    back = np.where(Time < -60)
+
+    back_file = params["bck_logfile"]
+    
+    if not os.path.exists(back_file):
+        print ("Error: No Background data found, exiting")
+        return 0
+    
+    Time , TS , Unc , Flux , st , et = read_results(back_file)
+    
     
     ncol = 1 ## Change to 2 for a two-column figure.
     fdim = get_size(244 * ncol)
     fig = plt.figure(figsize = fdim)
     plt.rcParams.update({'font.size': 8})
-    plt.hist(TS[back] , bins = 10)
+    plt.hist(TS , bins = 10)
     plt.axvline(4 , color = "orange" , ls = "--")
     plt.yscale("log")
     plt.xlabel("Test Statistic")
@@ -264,7 +384,7 @@ def TS_hist(params, compile_csv = None):
     fdim = get_size(244 * ncol)
     fig = plt.figure(figsize = fdim)
     plt.rcParams.update({'font.size': 8})
-    plt.hist(TS[back] , bins = 10, density = True)
+    plt.hist(TS , bins = 10, density = True)
     plt.plot(xarr2 , chi2arr , color = "orange")
     plt.axvline(4 , color = "orange" , ls = "--")
     #plt.xlabel("Test Statistic")
@@ -281,10 +401,10 @@ def TS_hist(params, compile_csv = None):
     fig = plt.figure(figsize = fdim)
     plt.rcParams.update({'font.size': 8})
     ## Cumulative distribution of TS values
-    xvs = np.linspace(0 , np.max(TS[back]) , 10000)
+    xvs = np.linspace(0 , np.max(TS) , 10000)
     yvs = []
     for i in xvs:
-        yvs.append(len(np.where(TS[back] <= i)[0]) / len(TS[back]))
+        yvs.append(len(np.where(TS <= i)[0]) / len(TS))
     plt.plot(xvs , yvs)
     plt.xlabel("Test Statistic")
     plt.ylabel("Cumulative Distribution")
@@ -295,14 +415,14 @@ def TS_hist(params, compile_csv = None):
     plt.close()
     
 
-    print (f"Statistics based on {len(TS[back])} Trials")
+    print (f"Statistics based on {len(TS)} Trials")
     rows = [["Sigma" , "TS" , "Number" , "Fraction (Cumulative)"]]
     table_x = [1 , 4 , 9 , 16 , 25]
     N_old = 0
     for x in table_x:
-        Nbin = len(np.where(TS[back] <= x)[0])
-        Ntri = len(np.where(TS[back] <= x)[0])
-        rows.append([np.sqrt(x) , x ,Ntri, Ntri / len(TS[back])])
+        Nbin = len(np.where(TS <= x)[0])
+        Ntri = len(np.where(TS <= x)[0])
+        rows.append([np.sqrt(x) , x ,Ntri, Ntri / len(TS)])
     print (tabulate(rows))
     
 def compile_data(params, output=None):
@@ -380,39 +500,18 @@ def TS_Grid(params):
     Plots the results from a TS Grid search
     '''
     
-    dir = params["grid_outdir"]
-    start = []
+    
+    Time , TS , Unc , Flux , st , et = read_results(params["grid_logfile"])
+    start=  []
     end = []
-    TS = []
-    Flux = []
-    Flux_err = []
-   
-    for i in os.listdir(dir):
-        fname = os.path.join(dir , i)
+    for i in range(len(Time)):
+        start.append(af.met_to_tpeak(st[i] , params))
+        end.append(af.met_to_tpeak(et[i] , params))
         
-        if ".csv" not in i:
-            continue
-        elif "grid" not in i:
-            continue
-        f = open(fname)
-        print (fname)
-        
-        sn1 = i.split("grid")[2]
-        sn2 = sn1.split("_")
-        start.append(float(sn2[1]))
-        end.append(float(sn2[2].split(".")[0]))
-        
-        for line in f.readlines():
-            split_line = line.split(",")
-            Flux.append(float(split_line[0]))
-            Flux_err.append(float(split_line[1]))
-            TS.append(float(split_line[2]))
-    if len(TS) == 0:
-        print ("No Grid Data Found, Exiting")
-        return 0
-
+    start = np.array(start)
+    end = np.array(end)
     TSi = TS.index(max(TS))
-    print (f"Maximum TS is {max(TS)}")
+    print (f"Maximum TS is {max(TS)} at time {Time[TSi]}")
     #mark1 = plt.Circle(( end[TSi], start[TSi]) , 0.5, fill=False)
     ncol = 1 ## Change to 2 for a two-column figure.
     fdim = get_size(244 * ncol)
@@ -458,6 +557,7 @@ if __name__ == "__main__":
     params = af.read_parameters(sys.argv[1])
     plot_TS_search(params)
     compile_data(params)
+    compile_bck_data(params) 
     plot_light_curve(params)
     TS_hist(params)
     TS_Grid(params)

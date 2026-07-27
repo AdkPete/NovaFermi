@@ -389,7 +389,7 @@ def gen_model(params, fheader, lock=None, outdir = "./", skip_pruning = False):
             input(message)
         else:
             input("Please edit input_model to include source models. Then, hit enter")
-    if not os.path.exists(pruned_fname) and not skip_pruning:
+    if not os.path.exists(pruned_fname) and not skip_pruning and params['use_pruner']:
         scat = load_source_cat(params["source_cat"])
         prune_model(model_fname, params)
         params['input_model'] = params['name'] + "_pruned_model.xml"
