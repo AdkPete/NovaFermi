@@ -8,7 +8,8 @@ params:
   peak: 2013-08-16 17:47:2.4 # Peak date and time (UTC)
   data_path: data/ # Path to data files for this source
   figdir: Figures/ # Directory to save figures to
-
+  earliest_time: -60
+  latest_time: 90
   # General Analysis Parameters:
 
   emin: 100 # Minimum Energy (MeV)
@@ -22,11 +23,13 @@ params:
 
   # What analysis should we run?
 
+  use_pruner: True # Run pruning code to build shorter source list?
   gen_av: True # Generate average likelihood fit
   find_mts: False # Run search for maximum TS value.
   gen_ts: False # Generate TS maps
   gen_lc: False # Build a light curve
-  gen_grid: False # Build Duration / TS Search Grid
+  gen_grid: True # Build Duration / TS Search Grid
+  gen_bck: False # Run False-Positive check on background data
 
   # Average model fit parameters. Only runs if gen_av is True
   # Note that all times are in days relative to the peak defined above
@@ -53,6 +56,12 @@ params:
   lc_end: 25 # End time for light curve.
   lc_outdir: lc_results/ # Location to save data.
 
+
+  # False Positive Search
+  bck_start: -3650
+  bck_end: -150
+  bck_outdir: bck_results/
+
   # TS Search Parameters
   # Note that this section is experimental. Will run an optimizer to search
   # for the maximum TS value. For most practical purposes, just run the 
@@ -69,11 +78,11 @@ params:
 
   # TS Grid Parameters
 
-  min_start: -2 # First start time to consider
-  max_start: 2 # Last start time to consider
+  min_start: -3 # First start time to consider
+  max_start: 0 # Last start time to consider
   gridstep: 1 # Step size for grid. Same size is used for start and end times
-  min_end: 5 # First end time to consider
-  max_end: 10 # Last end time to consider
+  min_end: 1 # First end time to consider
+  max_end: 100 # Last end time to consider
   grid_outdir: grid_results/ # Location to save grid results
 
 

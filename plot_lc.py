@@ -99,7 +99,7 @@ def plot_light_curve(params, display=False, compile_csv = None):
     None
     '''
 
-    Time , TS , Unc , Flux , st, end = read_results(params["lc_logfile"])
+    TS , Unc , Flux , Time, st, end = read_results(params["lc_logfile"])
     
     if len(Time) == 0:
         return 0
@@ -108,17 +108,10 @@ def plot_light_curve(params, display=False, compile_csv = None):
         tcut = float(sys.argv[2])
     else:
         tcut = -60
-        
-    ii = np.where(Time > tcut)
-    Time = Time[ii]
-    TS = TS[ii]
-    Unc = Unc[ii]
-    Flux = Flux[ii]
-    st = st[ii]
-    end = end[ii]
+    
     
     #ul2 = ul2[ii]
-    ww = (end[ii] - st[ii]) / (24 * 60 * 60)
+    ww = (end - st) / (24 * 60 * 60)
     if len(Time) == 0:
         return 0
     
@@ -141,7 +134,7 @@ def plot_light_curve(params, display=False, compile_csv = None):
     
     det = np.where(TS >= 4)
     lim = np.where(TS < 4)
-
+    
     ncol = 1 ## Change to 2 for a two-column figure.
     fdim = get_size(244 * ncol)
     fig = plt.figure(figsize = fdim)
@@ -358,14 +351,14 @@ def TS_hist(params, compile_csv = None):
         print ("Error: No Background data found, exiting")
         return 0
     
-    Time , TS , Unc , Flux , st , et = read_results(back_file)
+    TS , Unc , Flux , Time, st , et = read_results(back_file)
     
     
     ncol = 1 ## Change to 2 for a two-column figure.
     fdim = get_size(244 * ncol)
     fig = plt.figure(figsize = fdim)
     plt.rcParams.update({'font.size': 8})
-    plt.hist(TS , bins = 10)
+    plt.hist(TS , bins = 20)
     plt.axvline(4 , color = "orange" , ls = "--")
     plt.yscale("log")
     plt.xlabel("Test Statistic")
@@ -422,8 +415,57 @@ def TS_hist(params, compile_csv = None):
     for x in table_x:
         Nbin = len(np.where(TS <= x)[0])
         Ntri = len(np.where(TS <= x)[0])
-        rows.append([np.sqrt(x) , x ,Ntri, Ntri / len(TS)])
+        rows.append([np.sqrt(x) , x ,len(TS) - Ntri, Ntri / len(TS)])
     print (tabulate(rows))
+    
+    ## Plot a light curve out of the background data.
+    plt.figure()
+    plt.scatter(Time , Flux)
+    plt.errorbar(Time , Flux , yerr = Unc , ls = "none")
+    plt.xlabel("Time Since Peak (days)")
+    plt.ylabel("Flux (ph / s / cm$^{-2}$)")
+    plt.yscale("log")
+    plt.tight_layout()
+    plt.gca().yaxis.set_ticks_position('both')
+    plt.gca().xaxis.set_ticks_position('both')
+    plt.savefig(params["figdir"] + "Bck_LC.pdf")
+    plt.close()
+    
+    ## TS Curve
+    plt.figure()
+    plt.scatter(Time , TS)
+    plt.axhline(4 , ls = ":" , color = "blue")
+    plt.ylabel("Test Statistic")
+    plt.xlabel("Time Since Peak (days)")
+    plt.gca().yaxis.set_ticks_position('both')
+    plt.gca().xaxis.set_ticks_position('both')
+    plt.tight_layout()
+    plt.savefig(params["figdir"] + "Bck_TS.pdf")
+    plt.close()
+    
+    ## Sanity check to look for overlap between the background bins:
+    overlap = False
+    for i in range(len(st)):
+        for j in range(len(st)):
+            if i == j:
+                continue
+            if st[i] < st[j]:
+                if et[i] > st[j]:
+                    print (f"Overlap between bins {i} and {j}")
+                    print (st[i] , et[i] , st[j] , et[j])
+                    overlap = True
+    if not overlap:
+        print ("No Overlap between background bins detected")
+        
+    bin_widths = (et - st) / (24 * 60 * 60)
+    plt.scatter(Time, TS)
+    plt.errorbar(Time , TS , xerr = 0.5 * bin_widths , ls = "none")
+    plt.xlabel("Time Since Peak (days)")
+    plt.ylabel("Test Statistic")
+    plt.gca().yaxis.set_ticks_position('both')
+    plt.gca().xaxis.set_ticks_position('both')
+    plt.tight_layout()
+    plt.show()
     
 def compile_data(params, output=None):
     '''
@@ -500,17 +542,20 @@ def TS_Grid(params):
     Plots the results from a TS Grid search
     '''
     
+    if not os.path.exists(params["grid_logfile"]):
+        print ("No TS Grid results found, exiting")
+        return 0
+    TS , Unc , Flux , Time, st , et = read_results(params["grid_logfile"])
     
-    Time , TS , Unc , Flux , st , et = read_results(params["grid_logfile"])
     start=  []
     end = []
     for i in range(len(Time)):
         start.append(af.met_to_tpeak(st[i] , params))
         end.append(af.met_to_tpeak(et[i] , params))
-        
+    
     start = np.array(start)
     end = np.array(end)
-    TSi = TS.index(max(TS))
+    TSi = list(TS).index(max(TS))
     print (f"Maximum TS is {max(TS)} at time {Time[TSi]}")
     #mark1 = plt.Circle(( end[TSi], start[TSi]) , 0.5, fill=False)
     ncol = 1 ## Change to 2 for a two-column figure.
