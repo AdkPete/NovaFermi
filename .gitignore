@@ -29,6 +29,8 @@ test_V339_Del/reset.sh
 test_V906_Car/grid_results/
 test_V906_Car/lc_results/
 test_V906_Car/prune_files/
+test_V339_Del/prune_files/
+test_V339_Del/*.xml
 mkdocs.sh
 docs/*
 .DS_Store
