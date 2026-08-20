@@ -83,6 +83,29 @@ def setup_events_file(params, clobber=False):
     infile = '@events.txt'
     return infile , scfile
 
+def set_template_path(params, xml_path):
+    '''
+    Function to replace the template paths in a given xml file.
+    '''
+    
+    tree = ET.parse(xml_path)
+    root = tree.getroot()
+    for source in root:
+        spec = source.find("spectrum")
+        spat = source.find("spatialModel")
+        
+        if spat is not None:
+
+           
+                
+            if "file" in spat.attrib.keys():
+                if "gll_iem" in spat.get("file"):
+                    continue
+                spat.set("file", params["template_path"] + spat.get("file").split("/")[-1])
+                print (params["template_path"] + spat.get("file").split("/")[-1])
+    
+    tree.write(xml_path)
+    
 def cal_to_met(date_time):
     '''
     Function to compute Fermi MET
@@ -389,6 +412,9 @@ def gen_model(params, fheader, lock=None, outdir = "./", skip_pruning = False):
             input(message)
         else:
             input("Please edit input_model to include source models. Then, hit enter")
+
+    set_template_path(params, model_fname)
+    
     if not os.path.exists(pruned_fname) and not skip_pruning and params['use_pruner']:
         scat = load_source_cat(params["source_cat"])
         prune_model(model_fname, params)
@@ -643,7 +669,7 @@ def fit_model(params, fheader, get_like, inmod = "No" , opt = 'NewMINUIT', silen
     
     #checklocks(lock)
     #subprocess.run(drmnfb_comm,shell=True)
-    
+    #breakpoint()
     obs = BinnedObs(srcMaps=src_name,
             binnedExpMap=f'{outdir}{params["name"]}{fheader}_BinnedExpMap.fits',
             expCube=f'{outdir}{params["name"]}{fheader}_ltCube.fits',irfs='P8R3_SOURCE_V3')
@@ -654,7 +680,21 @@ def fit_model(params, fheader, get_like, inmod = "No" , opt = 'NewMINUIT', silen
     like.tol = 0.01
     
     checklocks(lock)
-    res = like.fit(verbosity=1,covar=True,optObject=likeobj)
+    
+    try:
+        res = like.fit(verbosity=1,covar=True,optObject=likeobj)
+    except:
+        ## Optimizer not converging, try reducing tolerance
+        like.tol = 1
+        checklocks(lock)
+        res = like.fit(verbosity=1,covar=True,optObject=likeobj)
+        like.tol = 0.1
+        res = like.fit(verbosity=1,covar=True,optObject=likeobj)
+        like.tol = 0.01
+        res = like.fit(verbosity=1,covar=True,optObject=likeobj)
+        like.tol = 0.001
+        res = like.fit(verbosity=1,covar=True,optObject=likeobj)
+        
     like.optimizer = "NewMinuit"
     
     try:
@@ -701,7 +741,19 @@ def get_counts(params, fheader, outdir, opt = 'NewMINUIT', silent=False, lock=No
     like.tol = 0.01
     
     checklocks(lock)
-    res = like.fit(verbosity=1,covar=True,optObject=likeobj)
+    try:
+        res = like.fit(verbosity=1,covar=True,optObject=likeobj)
+    except:
+        ## Optimizer not converging, try reducing tolerance
+        like.tol = 1
+        checklocks(lock)
+        res = like.fit(verbosity=1,covar=True,optObject=likeobj)
+        like.tol = 0.1
+        res = like.fit(verbosity=1,covar=True,optObject=likeobj)
+        like.tol = 0.01
+        res = like.fit(verbosity=1,covar=True,optObject=likeobj)
+        like.tol = 0.001
+        res = like.fit(verbosity=1,covar=True,optObject=likeobj)
     like.optimizer = "NewMinuit"
     
     try:

@@ -299,7 +299,9 @@ def load_data(params , compiled_csv = None):
 
 def read_results(fname):
     
-
+    if not os.path.exists(fname):
+        print ("No results found, exiting")
+        return [],[],[],[],[],[]
     f = open(fname)
     
     TS = []

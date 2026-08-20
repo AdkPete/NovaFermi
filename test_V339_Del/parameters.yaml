@@ -94,3 +94,4 @@ params:
   # Calibration Directory containing calibration files.
 
   cal_dir: /Users/Peter/Documents/Research/Novae/Fermi/Diffuse/
+  template_path: /Users/Peter/Documents/Research/Novae/Fermi/Diffuse/Templates/
