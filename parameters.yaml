@@ -25,12 +25,13 @@ params:
   nproc: 10 # Number of processes to use (for supported functions).
 
   # What analysis should we run?
-
+  use_pruner: True
   gen_av: True # Generate average likelihood fit
   find_mts: False # Run search for maximum TS value.
   gen_ts: False # Generate TS maps
   gen_lc: False # Build a light curve
   gen_grid: False # Build Duration / TS Search Grid
+  gen_bck: False
 
   # Average model fit parameters. Only runs if gen_av is True
   # Note that all times are in days relative to the peak defined above
@@ -57,6 +58,12 @@ params:
   lc_end: 25 # End time for light curve.
   lc_outdir: lc_results/ # Location to save data.
 
+  # False Positive Search
+  bck_start: -3650
+  bck_end: -150
+  bck_outdir: bck_results/
+
+
   # TS Search Parameters
   # Note that this section is experimental. Will run an optimizer to search
   # for the maximum TS value. For most practical purposes, just run the 
@@ -79,7 +86,7 @@ params:
   min_end: 1 # First end time to consider
   max_end: 35 # Last end time to consider
   grid_outdir: grid_results/ # Location to save grid results
-
+  grid_upper_lims: False
 
   # Debugging Parameters
 
@@ -89,3 +96,4 @@ params:
   # Calibration Directory containing calibration files.
 
   cal_dir: /Users/Peter/Documents/Research/Novae/Fermi/Diffuse/
+  template_path: /Users/Peter/Documents/Research/Novae/Fermi/Diffuse/Templates/

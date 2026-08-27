@@ -538,7 +538,7 @@ def compile_data(params, output=None):
         out_file.write(csv_line + "\n")
     out_file.close()
     
-def TS_Grid(params):
+def TS_Grid(params, return_TS = False):
     
     '''
     Plots the results from a TS Grid search
@@ -591,15 +591,19 @@ def TS_Grid(params):
     plt.savefig(params["figdir"] + "FluxGrid.pdf")
     plt.close()
     
+    if return_TS:
+        return max(TS), Time[TSi]
+    
     ## Print some useful stats
     ii = np.where(np.array(TS) >= 9)
     if len(ii[0]) == 0:
         print ("No significant bins detected")
-        return 0
+        return max(TS), Time[TSi]
     print ("Maximum flux in a significantly detected bin")
     
     print (np.max(np.array(Flux)[ii]))
     print (start[ii[0][0]],end[ii[0][0]])
+    return max(TS), Time[TSi]
 if __name__ == "__main__":
     params = af.read_parameters(sys.argv[1])
     plot_TS_search(params)
