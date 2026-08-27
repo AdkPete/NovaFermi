@@ -1,0 +1,56 @@
+<source name="PowerLaw_source" type="PointSource">
+<!-- point source units are cm^-2 s^-1 MeV^-1 -->
+<spectrum type="PowerLaw">
+<parameter free="1" max="1000.0" min="0.001" name="Prefactor" scale="1e-09" value="1"/>
+<parameter free="1" max="-1.0" min="-5." name="Index" scale="1.0" value="-2.1"/>
+<parameter free="0" max="2000.0" min="30.0" name="Scale" scale="1.0" value="100.0"/>
+</spectrum>
+<spatialModel type="SkyDirFunction">
+<parameter free="0" max="360." min="-360." name="RA" scale="1.0" value="83.45"/>
+<parameter free="0" max="90." min="-90." name="DEC" scale="1.0" value="21.72"/>
+</spatialModel>
+</source> 
+
+ <source name="LogParabola_source" type="PointSource">
+<!-- point source units are cm^-2 s^-1 MeV^-1 -->
+<spectrum type="LogParabola">
+<parameter free="1" max="1000.0" min="0.001" name="norm" scale="1e-9" value="1"/>
+<parameter free="1" max="10" min="0" name="alpha" scale="1.0" value="1"/>
+<parameter free="1" max="1e4" min="20" name="Eb" scale="1" value="300."/>
+<parameter free="1" max="10" min="0" name="beta" scale="1.0" value="2"/>
+</spectrum>
+<spatialModel type="SkyDirFunction">
+<parameter free="0" max="360." min="-360." name="RA" scale="1.0" value="83.45"/>
+<parameter free="0" max="90." min="-90." name="DEC" scale="1.0" value="21.72"/>
+</spatialModel>
+</source> 
+
+<source name="PLSuperExpCutoff_source" type="PointSource">
+<!-- point source units are cm^-2 s^-1 MeV^-1 -->
+<spectrum type="PLSuperExpCutoff">
+<parameter free="1" max="1000" min="1e-05" name="Prefactor" scale="1e-07" value="1"/>
+<parameter free="1" max="-0.5" min="-5" name="Index1" scale="1" value="-2.0"/>
+<parameter free="0" max="1000" min="50" name="Scale" scale="1" value="1000"/>
+<parameter free="1" max="30000" min="500" name="Cutoff" scale="1" value="2000"/>
+<parameter free="0" max="5" min="0" name="Index2" scale="1" value="1"/>
+</spectrum>
+<spatialModel type="SkyDirFunction">
+<parameter free="0" max="360." min="-360." name="RA" scale="1.0" value="83.45"/>
+<parameter free="0" max="90." min="-90." name="DEC" scale="1.0" value="21.72"/>
+</spatialModel>
+</source> 
+
+<source name="candidate_monitoring" type="PointSource">
+<!-- point source units are cm^-2 s^-1 MeV^-1 -->
+<spectrum type="PLSuperExpCutoff">
+<parameter free="1" max="1000" min="1e-05" name="Prefactor" scale="1e-07" value="1"/>
+<parameter free="1" max="-0.5" min="-5" name="Index1" scale="1" value="-2.0"/>
+<parameter free="0" max="1000" min="50" name="Scale" scale="1" value="1000"/>
+<parameter free="0" max="30000" min="500" name="Cutoff" scale="1" value="2000"/>
+<parameter free="0" max="5" min="0" name="Index2" scale="1" value="1"/>
+</spectrum>
+<spatialModel type="SkyDirFunction">
+<parameter free="0" max="360." min="-360." name="RA" scale="1.0" value="276.303167"/>
+<parameter free="0" max="90." min="-90." name="DEC" scale="1.0" value="-22.42480556"/>
+</spatialModel>
+</source> 
