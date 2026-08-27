@@ -83,6 +83,29 @@ def setup_events_file(params, clobber=False):
     infile = '@events.txt'
     return infile , scfile
 
+def setup_weekly_files(params, clobber=True):
+    '''
+    Setup event and spacecraft files for using FERMI LAT Weekly data files
+    '''
+    event_file = "events.txt"
+    data_dir = os.environ['LAT_DATA'] + "/weekly/photon/"
+    
+    if os.path.exists(event_file) and clobber:
+        os.remove(event_file)
+        
+    if not os.path.exists(event_file):
+        f = open(event_file , "w")
+        output = ""
+        for i in os.listdir(data_dir):
+            if ".fits" in i:
+                output += data_dir + i + "\n"
+        f.write(output[:-1])
+        f.close()
+    
+    scfile = os.environ['LAT_DATA'] + "/weekly/spacecraft/lat_spacecraft_weekly_merged.fits"
+    
+    return '@events.txt' , scfile
+
 def set_template_path(params, xml_path):
     '''
     Function to replace the template paths in a given xml file.
@@ -209,7 +232,11 @@ def read_parameters(pfile):
             params["input_model"] = params["name"] + "_input_model.xml"
         if "infile" not in params.keys() or "scfile" not in params.keys():
             ## If data is not specified, auto-detect data files.
-            infile , scfile = setup_events_file(params, clobber=False)
+            if params["data_path"] == "weekly":
+                infile , scfile = setup_weekly_files(params, clobber=True)
+            else:
+                infile , scfile = setup_events_file(params, clobber=False)
+                
             params["infile"] = infile
             params["scfile"] = scfile
             
@@ -1848,12 +1875,12 @@ def find_max_TS(params):
     print (Bx , Bf)
     return Bx , Bf
 
-def TS_Grid(params , starts , ends):
+def TS_Grid(params , starts , ends, up_lims = False):
     ## Start by setting up our parameter array
     param_array = []
     grid_dir = params["grid_outdir"]
-
-
+    
+    params['up_lim_lc'] = up_lims
     status_log, log_starts, log_ends = check_status(params["grid_logfile"])
     with mp.Manager() as manager:
         lock = manager.Lock()
@@ -1990,7 +2017,7 @@ def run_analysis(params):
         starts = np.arange(params["min_start"] , params["max_start"] , params["gridstep"])
         ends = np.arange(params["min_end"] , params["max_end"] , params["gridstep"])
         
-        TS_Grid(params, starts , ends)
+        TS_Grid(params, starts , ends, up_lims =params["grid_upper_lims"])
         
 
 if __name__ == "__main__":
