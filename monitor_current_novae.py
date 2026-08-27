@@ -257,7 +257,8 @@ def reset_results(name):
         sl = i.split(",")
         
         end_met = float(sl[5])
-        if end_met > max_met - 2.0 * 3600 * 24: # 2 days in seconds
+        
+        if end_met == max_met: # Remove final bins, which likely are incomplete
             continue
         new_logfile += i
         
@@ -340,6 +341,10 @@ def get_end_time(params):
     dtime = dtime.replace(tzinfo=datetime.timezone.utc)
     tmet = af.cal_to_met(dtime)
     tpeak = af.met_to_tpeak( tmet, params)
+    
+    step = params['gridstep']
+    ## Round up to nearest grid step. Want last bin to include all FERMI Data
+    tpeak = step * (int(tpeak / step) + 1)
     return tpeak
 
 def main_loop(table_only=False, reset=True, name = None):
@@ -374,7 +379,7 @@ def main_loop(table_only=False, reset=True, name = None):
         current_met = af.cal_to_met(datetime.datetime.now(tz=datetime.timezone.utc))
         
         time_since_peak = af.met_to_tpeak(current_met, params)
-        stop = int(get_end_time(params)) + 1 # Rounds up to nearest day
+        stop = get_end_time(params) ## Computes last bin covered by weekly files.
         
         params['max_end'] = stop
         if not table_only:
