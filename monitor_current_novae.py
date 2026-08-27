@@ -322,6 +322,26 @@ def cleanup_monitoring_data(name):
             os.remove(i)
     os.chdir(cwd)
 
+def get_end_time(params):
+    '''
+    Gets the end time of the monitoring period, computed based on the end of
+    the current weekly data file.
+    '''
+    
+    week = get_current_week_number()
+    data_dir = os.environ['LAT_DATA']
+    fname = os.path.join(data_dir, f"weekly/photon/lat_photon_weekly_w{week}_p305_v001.fits")
+    hdu = fits.open(fname)
+    end_time = hdu[0].header['DATE-END'].split(".")[0]
+    time = end_time
+    hdu.close()
+    
+    dtime = datetime.datetime.strptime(time, "%Y-%m-%dT%H:%M:%S")
+    dtime = dtime.replace(tzinfo=datetime.timezone.utc)
+    tmet = af.cal_to_met(dtime)
+    tpeak = af.met_to_tpeak( tmet, params)
+    return tpeak
+
 def main_loop(table_only=False, reset=True, name = None):
     '''
     Main function to monitor the current novae
@@ -354,7 +374,8 @@ def main_loop(table_only=False, reset=True, name = None):
         current_met = af.cal_to_met(datetime.datetime.now(tz=datetime.timezone.utc))
         
         time_since_peak = af.met_to_tpeak(current_met, params)
-        stop = int(time_since_peak) + 2
+        stop = int(get_end_time(params)) + 1 # Rounds up to nearest day
+        
         params['max_end'] = stop
         if not table_only:
             ## Run the analysis
