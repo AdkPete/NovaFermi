@@ -321,26 +321,17 @@ def cleanup_monitoring_data(name):
         if i.endswith(".fits") or i.endswith(".log"):
             os.remove(i)
     os.chdir(cwd)
-    
-def realtime_monitor():
-    '''
-    Function to monitor the current novae in real time. Will check for new data and run analysis.
-    '''
-    last_update = None
-    while True:
-        week = get_current_week_number()
-        current_file = f'weekly/photon/lat_photon_weekly_w{week}_p305_v001.fits'
-        breakpoint()
-        update_weekly_data()
-        
-def main_loop(table_only=False, reset=True):
+
+def main_loop(table_only=False, reset=True, name = None):
     '''
     Main function to monitor the current novae
     '''
     
     ## First, get the list of novae to analyze
-
-    names = get_current_novae()
+    if name is not None:
+        names = [name]
+    else:
+        names = get_current_novae()
 
     ## Front-load any user setup requirements.
     if not table_only:
@@ -398,7 +389,7 @@ def main_loop(table_only=False, reset=True):
     
 if __name__ == "__main__":
     #update_weekly_data()
-    realtime_monitor()
+    
     if len(sys.argv) > 1 and sys.argv[1] == "table_only":
         print ("Running in table only mode. No new analysis will be performed.")
         main_loop(table_only=True)
