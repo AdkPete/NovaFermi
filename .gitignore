@@ -31,6 +31,7 @@ test_V906_Car/lc_results/
 test_V906_Car/prune_files/
 test_V339_Del/prune_files/
 test_V339_Del/*.xml
+test_V339_Del/*.log
 mkdocs.sh
 docs/*
 .DS_Store
@@ -39,3 +40,4 @@ temp*
 gll*.fit
 html_docs/
 .vscode/
+events.txt
