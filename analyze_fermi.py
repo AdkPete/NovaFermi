@@ -1882,6 +1882,7 @@ def TS_Grid(params , starts , ends, up_lims = False):
     
     params['up_lim_lc'] = up_lims
     status_log, log_starts, log_ends = check_status(params["grid_logfile"])
+    
     with mp.Manager() as manager:
         lock = manager.Lock()
         id = 0
@@ -1915,11 +1916,15 @@ def TS_Grid(params , starts , ends, up_lims = False):
         print (len(param_array))
         
         results = []
+        start = time.time()
+        Ntrial = len(param_array)
         with mp.Pool(processes=params["nproc"], maxtasksperchild=1) as p:
             imres = p.imap(likelihood_wrapper , param_array, chunksize=1)
             for res in imres:
                 results.append(res)
-    
+        print (time.time() - start)
+        print (f"Completed {Ntrial} trials in {(time.time() - start)/60} minutes")
+        print (f"Average time per trial is {(time.time() - start)/Ntrial} seconds")
 
 def run_analysis(params):
     
@@ -2016,6 +2021,11 @@ def run_analysis(params):
         
         starts = np.arange(params["min_start"] , params["max_start"] , params["gridstep"])
         ends = np.arange(params["min_end"] , params["max_end"] , params["gridstep"])
+        if params["min_start"] == params["max_start"]:
+            starts = [params["min_start"]]
+        if params["min_end"] == params["max_end"]:
+            ends = [params["min_end"]]
+        
         
         TS_Grid(params, starts , ends, up_lims =params["grid_upper_lims"])
         

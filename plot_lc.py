@@ -412,7 +412,7 @@ def TS_hist(params, compile_csv = None):
 
     print (f"Statistics based on {len(TS)} Trials")
     rows = [["Sigma" , "TS" , "Number" , "Fraction (Cumulative)"]]
-    table_x = [1 , 4 , 9 , 16 , 25]
+    table_x = [1 , 4 , 9 , 16 , 20, 25]
     N_old = 0
     for x in table_x:
         Nbin = len(np.where(TS <= x)[0])

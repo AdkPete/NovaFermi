@@ -347,6 +347,7 @@ def get_end_time(params):
     tpeak = step * (int(tpeak / step) + 1)
     return tpeak
 
+
 def main_loop(table_only=False, reset=True, name = None):
     '''
     Main function to monitor the current novae
