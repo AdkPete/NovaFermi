@@ -538,7 +538,7 @@ def compile_data(params, output=None):
         out_file.write(csv_line + "\n")
     out_file.close()
     
-def TS_Grid(params, return_TS = False):
+def TS_Grid(params, return_TS = False, show = False, title = None):
     
     '''
     Plots the results from a TS Grid search
@@ -566,23 +566,41 @@ def TS_Grid(params, return_TS = False):
     
     plt.rcParams.update({'font.size': 8})
     plt.rcParams.update({'lines.markersize':2.5})
-    plt.scatter(end , start, c = TS )
+    # Build square, edge-to-edge cells from the grid coordinates.
+    xvalues = np.sort(np.unique(end))
+    yvalues = np.sort(np.unique(start))
+    xedges = np.r_[xvalues[0] - (xvalues[1] - xvalues[0]) / 2,
+                   (xvalues[:-1] + xvalues[1:]) / 2,
+                   xvalues[-1] + (xvalues[-1] - xvalues[-2]) / 2]
+    yedges = np.r_[yvalues[0] - (yvalues[1] - yvalues[0]) / 2,
+                   (yvalues[:-1] + yvalues[1:]) / 2,
+                   yvalues[-1] + (yvalues[-1] - yvalues[-2]) / 2]
+    TSgrid = np.full((len(yvalues), len(xvalues)), np.nan)
+    for x, y, value in zip(end, start, TS):
+        TSgrid[np.searchsorted(yvalues, y), np.searchsorted(xvalues, x)] = value
+    plt.pcolormesh(xedges, yedges, TSgrid, shading='flat')
     #plt.gca().add_artist(mark1)
     plt.colorbar(label="TS")
-    plt.scatter(end[TSi] , start[TSi] , marker = "o", facecolors =  'none',  edgecolors = "black",
+    plt.scatter(end[TSi] , start[TSi] , marker = "s", facecolors =  'none',  edgecolors = "black",
                 s = plt.rcParams['lines.markersize'] ** 2 * 5)
     plt.ylabel("Start Time (days)")
     plt.xlabel("End Time (days)")
     plt.gca().yaxis.set_ticks_position('both')
     plt.gca().xaxis.set_ticks_position('both')
     plt.tight_layout()
+    plt.title(title)
     plt.savefig(params["figdir"] + "TSGrid.pdf")
+    if show:
+        plt.show()
     plt.close()
     
-    plt.scatter(end , start, c = np.log10(np.array(Flux)))
+    Fluxgrid = np.full((len(yvalues), len(xvalues)), np.nan)
+    for x, y, value in zip(end, start, Flux):
+        Fluxgrid[np.searchsorted(yvalues, y), np.searchsorted(xvalues, x)] = np.log10(value)
+    plt.pcolormesh(xedges, yedges, Fluxgrid, shading='flat')
     #plt.gca().add_artist(mark1)
     plt.colorbar(label="log10(Flux)")
-    plt.scatter(end[TSi] , start[TSi] , marker = "o", facecolors =  'none',  edgecolors = "black",
+    plt.scatter(end[TSi] , start[TSi] , marker = "s", facecolors =  'none',  edgecolors = "black",
                 s = plt.rcParams['lines.markersize'] ** 2 * 5)
     plt.ylabel("Start Time (days)")
     plt.xlabel("End Time (days)")
