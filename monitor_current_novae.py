@@ -383,6 +383,8 @@ def main_loop(table_only=False, reset=True, name = None):
         stop = get_end_time(params) ## Computes last bin covered by weekly files.
         
         params['max_end'] = stop
+        params['max_start'] = stop
+        
         if not table_only:
             ## Run the analysis
             if reset:
