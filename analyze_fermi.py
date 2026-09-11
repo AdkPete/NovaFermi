@@ -83,6 +83,52 @@ def setup_events_file(params, clobber=False):
     infile = '@events.txt'
     return infile , scfile
 
+def setup_weekly_files(params, clobber=True):
+    '''
+    Setup event and spacecraft files for using FERMI LAT Weekly data files
+    '''
+    event_file = "events.txt"
+    data_dir = os.environ['LAT_DATA'] + "/weekly/photon/"
+    
+    if os.path.exists(event_file) and clobber:
+        os.remove(event_file)
+        
+    if not os.path.exists(event_file):
+        f = open(event_file , "w")
+        output = ""
+        for i in os.listdir(data_dir):
+            if ".fits" in i:
+                output += data_dir + i + "\n"
+        f.write(output[:-1])
+        f.close()
+    
+    scfile = os.environ['LAT_DATA'] + "/weekly/spacecraft/lat_spacecraft_weekly_merged.fits"
+    
+    return '@events.txt' , scfile
+
+def set_template_path(params, xml_path):
+    '''
+    Function to replace the template paths in a given xml file.
+    '''
+    
+    tree = ET.parse(xml_path)
+    root = tree.getroot()
+    for source in root:
+        spec = source.find("spectrum")
+        spat = source.find("spatialModel")
+        
+        if spat is not None:
+
+           
+                
+            if "file" in spat.attrib.keys():
+                if "gll_iem" in spat.get("file"):
+                    continue
+                spat.set("file", params["template_path"] + spat.get("file").split("/")[-1])
+                print (params["template_path"] + spat.get("file").split("/")[-1])
+    
+    tree.write(xml_path)
+    
 def cal_to_met(date_time):
     '''
     Function to compute Fermi MET
@@ -163,6 +209,10 @@ def read_parameters(pfile):
     with open(pfile, 'r') as f:
         config = yaml.safe_load(f)
         params = config["params"]
+        
+        params["runlog"] = os.path.join(os.getcwd(), "runtime_log.log")
+        
+        
         ## convert peak to MET
         date = params["peak"].split(" ")[0]
         time = params["peak"].split(" ")[1]
@@ -182,7 +232,11 @@ def read_parameters(pfile):
             params["input_model"] = params["name"] + "_input_model.xml"
         if "infile" not in params.keys() or "scfile" not in params.keys():
             ## If data is not specified, auto-detect data files.
-            infile , scfile = setup_events_file(params, clobber=False)
+            if params["data_path"] == "weekly":
+                infile , scfile = setup_weekly_files(params, clobber=True)
+            else:
+                infile , scfile = setup_events_file(params, clobber=False)
+                
             params["infile"] = infile
             params["scfile"] = scfile
             
@@ -201,8 +255,59 @@ def read_parameters(pfile):
             sys.exit()
         params["source_cat"] = cal_dir + f"gll_psc_v{max(vns)}.xml"
         
+        if 'bck_outdir' in params.keys():
+            params['bck_output'] = (params['bck_outdir']
+                                    + "background_results.csv")
+        else:
+            warning = "Warning: No background output in parameter file.\n"
+            warning += " This parameter file is deprecated; additional params"
+            warning += " should be added to the parameter file.\n"
+            warning += " See template for details. Will cause error"
+            warning += " in future versions.\n"
+            
+            print (warning)
+            
+        params['lc_logfile'] = (params['lc_outdir']
+                                + "lightcurve_results.csv")
+            
+        params["avg_logfile"] = (params['av_outdir']
+                                + "average_results.csv")
+        
+        params["grid_logfile"] = (params['grid_outdir']
+                                + "grid_results.csv")
+        
+        params["mts_logfile"] = (params['tsm_outdir']
+                                + "mts_results.csv")
+        
+        params["bck_logfile"] = (params['bck_outdir']
+                                + "bck_results.csv")
         return params
 
+def check_status(result_file):
+    '''
+    Utility function to check status of a run
+    Reads in a result file and will return an array of times that have
+    results available.
+    '''
+    
+    if not os.path.exists(result_file):
+        f = open(result_file , "w")
+        f.write('Flux,Flux_Error,TS,Time,met_start,met_end\n')
+        f.close()
+        return [] , [] , []
+    f = open(result_file , "r")
+    times = [] 
+    starts = []
+    ends = []
+    for i in f.readlines():
+        if i.split(",")[3].strip() == "Time":
+            continue
+        times.append(float(i.split(",")[3]))
+        starts.append(float(i.split(",")[4]))
+        ends.append(float(i.split(",")[5]))
+    return times , starts, ends
+
+    
 def print_params(params):
     
     '''
@@ -334,7 +439,10 @@ def gen_model(params, fheader, lock=None, outdir = "./", skip_pruning = False):
             input(message)
         else:
             input("Please edit input_model to include source models. Then, hit enter")
-    if not os.path.exists(pruned_fname) and not skip_pruning:
+
+    set_template_path(params, model_fname)
+    
+    if not os.path.exists(pruned_fname) and not skip_pruning and params['use_pruner']:
         scat = load_source_cat(params["source_cat"])
         prune_model(model_fname, params)
         params['input_model'] = params['name'] + "_pruned_model.xml"
@@ -588,7 +696,7 @@ def fit_model(params, fheader, get_like, inmod = "No" , opt = 'NewMINUIT', silen
     
     #checklocks(lock)
     #subprocess.run(drmnfb_comm,shell=True)
-    
+    #breakpoint()
     obs = BinnedObs(srcMaps=src_name,
             binnedExpMap=f'{outdir}{params["name"]}{fheader}_BinnedExpMap.fits',
             expCube=f'{outdir}{params["name"]}{fheader}_ltCube.fits',irfs='P8R3_SOURCE_V3')
@@ -599,7 +707,21 @@ def fit_model(params, fheader, get_like, inmod = "No" , opt = 'NewMINUIT', silen
     like.tol = 0.01
     
     checklocks(lock)
-    res = like.fit(verbosity=1,covar=True,optObject=likeobj)
+    
+    try:
+        res = like.fit(verbosity=1,covar=True,optObject=likeobj)
+    except:
+        ## Optimizer not converging, try reducing tolerance
+        like.tol = 1
+        checklocks(lock)
+        res = like.fit(verbosity=1,covar=True,optObject=likeobj)
+        like.tol = 0.1
+        res = like.fit(verbosity=1,covar=True,optObject=likeobj)
+        like.tol = 0.01
+        res = like.fit(verbosity=1,covar=True,optObject=likeobj)
+        like.tol = 0.001
+        res = like.fit(verbosity=1,covar=True,optObject=likeobj)
+        
     like.optimizer = "NewMinuit"
     
     try:
@@ -646,7 +768,19 @@ def get_counts(params, fheader, outdir, opt = 'NewMINUIT', silent=False, lock=No
     like.tol = 0.01
     
     checklocks(lock)
-    res = like.fit(verbosity=1,covar=True,optObject=likeobj)
+    try:
+        res = like.fit(verbosity=1,covar=True,optObject=likeobj)
+    except:
+        ## Optimizer not converging, try reducing tolerance
+        like.tol = 1
+        checklocks(lock)
+        res = like.fit(verbosity=1,covar=True,optObject=likeobj)
+        like.tol = 0.1
+        res = like.fit(verbosity=1,covar=True,optObject=likeobj)
+        like.tol = 0.01
+        res = like.fit(verbosity=1,covar=True,optObject=likeobj)
+        like.tol = 0.001
+        res = like.fit(verbosity=1,covar=True,optObject=likeobj)
     like.optimizer = "NewMinuit"
     
     try:
@@ -705,7 +839,8 @@ compute_counts = False, skip_pruning = False):
     None
     '''
     
-    
+    #return 1e-7,1e-8,157
+
     runlogname = "runlog" + fheader + ".log"
     
     if params["runlog"]:
@@ -918,10 +1053,11 @@ def likelihood_wrapper(run_pars):
 
     center_t = (run_pars[1] + run_pars[2]) / 2.0
     center_t = met_to_tpeak(center_t, run_pars[0])
-    log_file = run_pars[7] + run_pars[5] + run_pars[4] +  f"_${int(center_t)}_.csv"
+    
     
     try:
         F , unc , ts = binned_likelihood(*run_pars[0:5], lock = run_pars[6], outdir = run_pars[7])
+        
     except Exception as e:
         err_l = run_pars[7] + "err_log_1_" + run_pars[4] + ".log"
         outlog = open(err_l , "w")
@@ -978,12 +1114,23 @@ def likelihood_wrapper(run_pars):
         rf.write("Run Complete; saving to a file\n")
         rf.close()
     
+    
     if F >= 0:
-        f = open(log_file , "w")
+        
+        
         tmid = (run_pars[1] + run_pars[2]) / 2.0
-        f.write(str(F) + "," + str(unc) + "," + str(ts) + "," + str(tmid))
-        #f.write("," + str(F2))
-        f.close()
+        tmid = met_to_tpeak(tmid, run_pars[0])
+        
+        with run_pars[6]:
+            
+            f = open(run_pars[5] , "a")
+            f.write(str(F) + "," + str(unc) + "," + str(ts) + "," + str(tmid))
+            f.write("," + str(run_pars[1]) + "," + str(run_pars[2]))
+            f.write("\n")
+            f.close()
+        
+    else:
+        print ("Warning; Flux is Negative!")
         
     if run_pars[0]["cleanlc"]:
         cleanup(run_pars[0] , run_pars[4], all_files = True, outdir = run_pars[7])
@@ -1033,7 +1180,7 @@ def light_curve_singleproc(params, clobber, log = "mp_log"):
         param_row = [params, st, et, clobber, fheader, log, None, lcdir]
         param_row.append( params["cleanlc"])
         center_t = met_to_tpeak(t , params)
-        log_file = param_row[7] + param_row[5] + param_row[4] + f"_${int(center_t)}_.csv"
+        log_file = param_row[7] + param_row[5] + param_row[4] + f"_{int(center_t)}.csv"
         if not os.path.exists(log_file):
             
             param_array.append(param_row)
@@ -1078,7 +1225,7 @@ def light_curve_singleproc(params, clobber, log = "mp_log"):
     
     return results
 
-def light_curve_multiproc(params , clobber, log="mp_log"):
+def light_curve_multiproc(params , clobber):
     '''
     Function to build a light curve
     Uses window width in parameter file, and step size
@@ -1098,7 +1245,7 @@ def light_curve_multiproc(params , clobber, log="mp_log"):
     start = tpeak_to_met(params["lc_start"], params)
     end = tpeak_to_met(params["lc_end"], params)
     lcdir = params["lc_outdir"]
-    # // log =  log
+
     ## Start by setting up our parameter array
     param_array = []
     
@@ -1107,6 +1254,8 @@ def light_curve_multiproc(params , clobber, log="mp_log"):
     t = start + step_seconds / 2.0
     tpeak_start = met_to_tpeak(start, params)
 
+    status_log, log_starts, log_ends = check_status(params["lc_logfile"])
+    
     with mp.Manager() as manager:
         lock = manager.Lock()
         id = 0
@@ -1115,16 +1264,28 @@ def light_curve_multiproc(params , clobber, log="mp_log"):
             fheader = f"_{params['window']}_{params['lcstep']}_{tpeak_start}_st{id}"
             st = t - window_half_seconds
             et = t + window_half_seconds
-            param_row = [params, st, et, clobber, fheader, log, lock, lcdir]
+            t_day = met_to_tpeak(t , params)
+            skip = False
+            for i in range(len(log_starts)):
+                if st == log_starts[i] and et == log_ends[i]:
+                
+                    print (f"Skipping {t_day} as it is already in the log file")
+                    t += step_seconds
+                    id += 1
+                    skip = True
+            if skip:
+                continue
+            
+            
+            param_row = [params, st, et, clobber, fheader, params['lc_logfile'], lock, lcdir]
             param_row.append( params["cleanlc"])
             center_t = met_to_tpeak(t , params)
-            log_file = param_row[7] + param_row[5] + param_row[4] + f"_${int(center_t)}_.csv"
-            if not os.path.exists(log_file) or clobber:
-                
-                param_array.append(param_row)
+            
+            
+            
             t += step_seconds
             id += 1
-
+            param_array.append(param_row)
         ## maxtasksperchild = 1 is designed to resolve a memory usage problem
         ## Probably mildly inneficient, but better than consuming many GB of
         ## RAM per process.
@@ -1136,35 +1297,6 @@ def light_curve_multiproc(params , clobber, log="mp_log"):
             imres = p.imap(likelihood_wrapper , param_array, chunksize=1)
             for res in imres:
                 results.append(res)
-    np.save(log + ".npy" , results)
-    
-    Flux = []
-    unc = []
-    ts = []
-    time = []
-    tpeak = []
-    for i in results:
-        Flux.append(i[0])
-        unc.append(i[1])
-        ts.append(i[2])
-        time.append(i[3])
-        tpeak.append(met_to_tpeak(i[3] , params))
-        
-    time = np.array(time)
-    Flux = np.array(Flux)
-    unc = np.array(unc)
-    ts = np.array(ts)
-    tpeak = np.array(tpeak)
-
-    det = np.where(ts >=4)
-    lim = np.where(ts < 4)
-    plt.scatter(tpeak[det] , Flux[det], color = "blue")
-    plt.errorbar(tpeak[det] , Flux[det] , unc[det] , ls = 'none', color = "blue")
-    plt.scatter(tpeak[lim] , Flux[lim] , color = "orange" , marker = "v")
-    plt.xlabel("Time since peak (days)")
-    plt.ylabel("Flux (ph / s / cm$^{-2}$)")
-    plt.savefig(params["figdir"] + "LC.pdf")
-    plt.close()
     
     return results
 
@@ -1201,6 +1333,8 @@ def false_positive_rate(params, clobber, log = "mp_log"):
     t = start + step_seconds / 2.0
     tpeak_start = met_to_tpeak(start, params)
 
+    status_log, log_starts, log_ends = check_status(params["bck_logfile"])
+    
     with mp.Manager() as manager:
         lock = manager.Lock()
         id = 0
@@ -1209,11 +1343,23 @@ def false_positive_rate(params, clobber, log = "mp_log"):
             fheader = f"_{params['window']}_{params['lcstep']}_{tpeak_start}_st{id}"
             st = t - window_half_seconds
             et = t + window_half_seconds
-            param_row = [params, st, et, clobber, fheader, log, lock, lcdir]
+            
+            skip = False
+            for k in range(len(log_starts)):
+                if st == log_starts[k] and et == log_ends[k]:
+                
+                    print (f"Skipping {t} as it is already in the log file")
+                    t += step_seconds
+                    id += 1
+                    skip = True
+            if skip:
+                continue
+            
+            param_row = [params, st, et, clobber, fheader, params["bck_logfile"], lock, lcdir]
             param_row.append( params["cleanlc"])
             param_row.append( params["cleanlc"])
             center_t = met_to_tpeak(t , params)
-            log_file = param_row[7] + param_row[5] + param_row[4] + f"_${int(center_t)}_.csv"
+            log_file = param_row[7] + param_row[5] + param_row[4] + f"_{int(center_t)}.csv"
             if not os.path.exists(log_file) or clobber:
                 
                 param_array.append(param_row)
@@ -1231,7 +1377,7 @@ def false_positive_rate(params, clobber, log = "mp_log"):
             imres = p.imap(likelihood_wrapper , param_array, chunksize=1)
             for res in imres:
                 results.append(res)
-    np.save(log + ".npy" , results)
+    
     return results
 
 def gen_ul_xml(input_file, output_file, name , smodel):
@@ -1642,8 +1788,7 @@ def generate_residuals(params, clobber, fheader, lock=None,outdir = "./"):
     ## Generate a source model.
     ## I don't know how to do this in the python interface, so we 
     ## call the FermiTools from the shell with subprocess. Works,
-    ## but is not elegant.
-
+    ## but is not elegant
     mmc = "gtmodel "
     mmc += f"srcmaps={outdir}{params['name']}{fheader}_srcmap.fits "
     mmc += f"srcmdl={outdir}fit_model{fheader}.xml "
@@ -1730,11 +1875,14 @@ def find_max_TS(params):
     print (Bx , Bf)
     return Bx , Bf
 
-def TS_Grid(params , starts , ends):
+def TS_Grid(params , starts , ends, up_lims = False):
     ## Start by setting up our parameter array
     param_array = []
     grid_dir = params["grid_outdir"]
-
+    
+    params['up_lim_lc'] = up_lims
+    status_log, log_starts, log_ends = check_status(params["grid_logfile"])
+    
     with mp.Manager() as manager:
         lock = manager.Lock()
         id = 0
@@ -1749,25 +1897,36 @@ def TS_Grid(params , starts , ends):
                 fheader = f"_grid_{start}_{end}"
                 st = tpeak_to_met(start, params)
                 et = tpeak_to_met(end, params)
+                skip = False
                 
-                param_row = [params, st, et, False, fheader, "gridlog", lock, grid_dir]
-                rlog =param_row[7] +  param_row[5] + param_row[4] + ".csv"
-                print (rlog)
-                if not os.path.exists(rlog):
-                    param_array.append(param_row)
+                for i in range(len(log_starts)):
+                    if st == log_starts[i] and et == log_ends[i]:
+                        print (f"Skipping {start} to {end} as it is already in the log file")
+                        skip = True
+                        break
+                if skip:
+                    continue
+                
+                param_row = [params, st, et, False, fheader, params["grid_logfile"], lock, grid_dir]
+      
+                param_array.append(param_row)
         ## maxtasksperchild = 1 is designed to resolve a memory usage problem
         ## Probably mildly inneficient, but better than consuming many GB of
         ## RAM per process.
         print (len(param_array))
         
         results = []
+        start = time.time()
+        Ntrial = len(param_array)
         with mp.Pool(processes=params["nproc"], maxtasksperchild=1) as p:
             imres = p.imap(likelihood_wrapper , param_array, chunksize=1)
             for res in imres:
                 results.append(res)
-    
+        print (time.time() - start)
+        print (f"Completed {Ntrial} trials in {(time.time() - start)/60} minutes")
+        print (f"Average time per trial is {(time.time() - start)/Ntrial} seconds")
 
-def run_analysis(parameters):
+def run_analysis(params):
     
 
     ##Average Run First
@@ -1777,6 +1936,16 @@ def run_analysis(parameters):
         start_time = tpeak_to_met(params["avstart"] , params)
         end_time = tpeak_to_met(params["avend"] , params)
         av_dir = params["av_outdir"]
+        mid_time = (start_time + end_time) / 2.0
+        tmid = met_to_tpeak(mid_time , params)
+
+        times, log_starts, log_ends = check_status(params["avg_logfile"])
+        for i in range(len(log_starts)):
+            if start_time == log_starts[i] and end_time == log_ends[i]:
+                print (f"Skipping avgerage run as it is already in the log file")
+                params["gen_av"] = False
+                run_analysis(params) ## Go do everything else
+                return 0
         
         print ("Beginning Likelihood Calculations")
         
@@ -1787,6 +1956,8 @@ def run_analysis(parameters):
         print (f"Likelihood calculation finished; runtime is {(end-start)/60.} m")
         
         F , F_err , TS = res
+        
+        
         if TS < params["av_ts_lim"] and params["up_lim_av"]:
             start = time.time()
             Flux = compute_upper_lim(params , "", outdir = av_dir)[0]
@@ -1804,8 +1975,21 @@ def run_analysis(parameters):
             e2 = time.time()
             '''
             print (f"My Upper Limit Flux = {Flux}; runtime is {(end-start)/60.} m")
-            # // print (f"FermiTools Upper Limit Flux = {Flux2}; runtime is {(e2-s2)/60.} m")
+            f = open(params["avg_logfile"] , "a")
+            f.write(str(F) + "," + str(0) + "," + str(TS) + "," + str(tmid))
+            f.write("," + str(start_time) + "," + str(end_time))
+            f.write("\n")
+            f.close()
+            
+        else:
+            f = open(params["avg_logfile"] , "a")
+            f.write(str(F) + "," + str(F_err) + "," + str(TS) + "," + str(tmid))
+            f.write("," + str(start_time) + "," + str(end_time))
+            f.write("\n")
+            f.close()
+        
         print ("Model TS value is", TS)
+        
         print ("Model Flux is " , F)
         #params["input_model"] = "fit_model.xml"
         
@@ -1837,8 +2021,13 @@ def run_analysis(parameters):
         
         starts = np.arange(params["min_start"] , params["max_start"] , params["gridstep"])
         ends = np.arange(params["min_end"] , params["max_end"] , params["gridstep"])
+        if params["min_start"] == params["max_start"]:
+            starts = [params["min_start"]]
+        if params["min_end"] == params["max_end"]:
+            ends = [params["min_end"]]
         
-        TS_Grid(params, starts , ends)
+        
+        TS_Grid(params, starts , ends, up_lims =params["grid_upper_lims"])
         
 
 if __name__ == "__main__":
