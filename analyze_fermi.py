@@ -1046,11 +1046,20 @@ def likelihood_wrapper(run_pars):
         log : filename to save data to
         lock : lock object : Lock used to prevent file conflicts
         outdir : string : Location to store all produced files
+        log_notes: Optional List : List of extra info to write into log file
+        
     Returns
     ________
     Flux , Flux_Error , TS
     '''
 
+    if len(run_pars) < 8:
+        raise ValueError("run_pars must contain at least 8 elements")
+    elif len(run_pars) == 8:
+        log_notes = []
+    else:
+        log_notes = run_pars[8]
+        
     center_t = (run_pars[1] + run_pars[2]) / 2.0
     center_t = met_to_tpeak(center_t, run_pars[0])
     
@@ -1126,6 +1135,8 @@ def likelihood_wrapper(run_pars):
             f = open(run_pars[5] , "a")
             f.write(str(F) + "," + str(unc) + "," + str(ts) + "," + str(tmid))
             f.write("," + str(run_pars[1]) + "," + str(run_pars[2]))
+            for i in log_notes:
+                f.write("," + str(i))
             f.write("\n")
             f.close()
         
@@ -1875,7 +1886,7 @@ def find_max_TS(params):
     print (Bx , Bf)
     return Bx , Bf
 
-def TS_Grid(params , starts , ends, up_lims = False):
+def TS_Grid(params , starts , ends, up_lims = False, log_notes = None):
     ## Start by setting up our parameter array
     param_array = []
     grid_dir = params["grid_outdir"]
@@ -1908,6 +1919,8 @@ def TS_Grid(params , starts , ends, up_lims = False):
                     continue
                 
                 param_row = [params, st, et, False, fheader, params["grid_logfile"], lock, grid_dir]
+                if log_notes is not None:
+                    param_row.append(log_notes)
       
                 param_array.append(param_row)
         ## maxtasksperchild = 1 is designed to resolve a memory usage problem
@@ -1923,10 +1936,11 @@ def TS_Grid(params , starts , ends, up_lims = False):
             for res in imres:
                 results.append(res)
         print (time.time() - start)
-        print (f"Completed {Ntrial} trials in {(time.time() - start)/60} minutes")
-        print (f"Average time per trial is {(time.time() - start)/Ntrial} seconds")
+        if Ntrial > 0:
+            print (f"Completed {Ntrial} trials in {(time.time() - start)/60} minutes")
+            print (f"Average time per trial is {(time.time() - start)/Ntrial} seconds")
 
-def run_analysis(params):
+def run_analysis(params, log_notes = None):
     
 
     ##Average Run First
@@ -2027,7 +2041,7 @@ def run_analysis(params):
             ends = [params["min_end"]]
         
         
-        TS_Grid(params, starts , ends, up_lims =params["grid_upper_lims"])
+        TS_Grid(params, starts , ends, up_lims =params["grid_upper_lims"], log_notes = log_notes)
         
 
 if __name__ == "__main__":
