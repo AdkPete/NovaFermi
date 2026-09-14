@@ -210,7 +210,7 @@ def read_parameters(pfile):
         config = yaml.safe_load(f)
         params = config["params"]
         
-        params["runlog"] = os.path.join(os.getcwd(), "runtime_log.log")
+        params["runlog_fname"] = os.path.join(os.getcwd(), "runtime_log.log")
         
         
         ## convert peak to MET
