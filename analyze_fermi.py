@@ -191,6 +191,122 @@ def met_to_tpeak(met , params):
     
     return delta_peak / (24 * 60 * 60)
     
+def read_spec_from_xml(xml_file, params):
+    '''
+    Function to read out spectral parameters for our nova from the 
+    model xml file. Returns a dictionary with the parameters.
+    '''
+    
+    tree = ET.parse(xml_file)
+    root = tree.getroot()
+    
+    for source in root:
+        if source.get("name") == params["name"]:
+            spec = source.find("spectrum")
+            spat = source.find("spatialModel")
+            spec_type = spec.get("type")
+            spat_type = spat.get("type")
+            spec_params = {}
+            free_params = {}
+            for par in spec:
+                spec_params[par.get("name")] = float(par.get("value"))
+                free_params[par.get("name")] = par.get("free")
+            return spec_type , spat_type , spec_params, free_params
+        
+    return None , None , None, None
+def save_parameters(params, fname):
+    '''
+    Function to save analysis parameters and source model parameters.
+    Only will save parameters that are important for confirming that 
+    the required analysis parameters are the same as a future run for
+    consistency checks.
+    '''
+    
+    save_params = {}
+    save_params["name"] = params["name"]
+    save_params["ra"] = params["ra"]
+    save_params["dec"] = params["dec"]
+    save_params["peak"] = params["peak"]
+    
+    save_params["earliest_time"] = params["earliest_time"]
+    save_params["latest_time"] = params["latest_time"]
+    
+    save_params["roi"] = params["roi"]
+    save_params["emin"] = params["emin"]
+    save_params["emax"] = params["emax"]
+    save_params["N_ebin"] = params["N_ebin"]
+    save_params["pix_sc"] = params["pix_sc"]
+    
+    stype, x, spec_params, free_params = read_spec_from_xml(params["input_model"], params)
+    save_params["spec_type"] = stype
+    
+    ## Now write the yaml file, with three sections: params, spec_params, free_params
+
+    with open(fname, 'w') as f:
+        yaml.dump({"params": save_params, "spec_params": spec_params, "free_params": free_params}, f)
+        
+    
+def load_used_parameters(fname):
+    '''
+    Function to load parameters from a previous run. Used to check that
+    the parameters are consistent with a previous run.
+    '''
+    
+    with open(fname, 'r') as f:
+        config = yaml.safe_load(f)
+        params = config["params"]
+        spec_params = config["spec_params"]
+        free_params = config["free_params"]
+        
+    return params, spec_params, free_params
+
+def confirm_parameters(params, yaml_fname):
+    '''
+    Function to confirm that the parameters in a previous run are consistent
+    with the current run. If not, will raise an error.
+    '''
+    
+    old_params, old_spec_params, old_free_params = load_used_parameters(fname)
+    
+    input_model = params["input_model"]
+    stype, x, spec_params, free_params =   read_spec_from_xml(input_model, params)
+    params["spec_type"] = stype
+    
+    match = True
+    for key in old_params.keys():
+        if key not in params.keys():
+            raise ValueError(f"Parameter {key} not found in current run.")
+        if old_params[key] != params[key]:
+            if not match:
+                print ("Warning, parameters have changed since last run.")
+                print ("Exiting, please change save location, or update parameters to match")
+            match = False
+            print (f"Parameter {key} has changed. Old: {old_params[key]}, New: {params[key]}")
+    
+    for key in old_spec_params.keys():
+        if key not in spec_params.keys():
+            print (f"Warning, spectral parameter {key} not found in current run.")
+        if old_spec_params[key] != spec_params[key]:
+            if not match:
+                print ("Warning, spectral parameters have changed since last run.")
+                print ("Exiting, please change save location, or update parameters to match")
+            match = False
+            print (f"Spectral parameter {key} has changed. Old: {old_spec_params[key]}, New: {spec_params[key]}")
+    
+    for key in old_free_params.keys():
+        if key not in free_params.keys():
+            print (f"Warning, free parameter {key} not found in current run.")
+        if old_free_params[key] != free_params[key]:
+            if not match:
+                print ("Warning, free parameters have changed since last run.")
+                print ("Exiting, please change save location, or update parameters to match")
+            match = False
+            print (f"Free parameter {key} has changed. Old: {old_free_params[key]}, New: {free_params[key]}")
+            
+    if not match:
+        sys.exit()
+    return match
+    
 def read_parameters(pfile):
     '''
     Function to read analysis parameter file
@@ -281,7 +397,35 @@ def read_parameters(pfile):
         
         params["bck_logfile"] = (params['bck_outdir']
                                 + "bck_results.csv")
+        
+        
         return params
+    
+def save_result(params, met_start, met_end, flux, flux_err, ts, upper_limit,
+         used_param_file, lock=None):
+    '''
+    Function to add results from a likelihood analysis to our run log.
+    '''
+    
+    fname = params["result_log"]
+    
+    if lock is not None:
+        with lock:
+            if not os.path.exists(fname):
+                f = open(fname , "w")
+                f.write('Flux,Flux_Error,TS,upper_lim,met_start,met_end,used_param_file\n')
+                f.close()
+            f = open(fname , "a")
+            f.write(f"{flux},{flux_err},{ts},{upper_limit},{met_start},{met_end},{used_param_file}\n")
+            f.close()
+    else:
+        if not os.path.exists(fname):
+            f = open(fname , "w")
+            f.write('Flux,Flux_Error,TS,upper_lim,met_start,met_end,used_param_file\n')
+            f.close()
+        f = open(fname , "a")
+        f.write(f"{flux},{flux_err},{ts},{upper_limit},{met_start},{met_end},{used_param_file}\n")
+        f.close()
 
 def check_status(result_file):
     '''
@@ -292,20 +436,22 @@ def check_status(result_file):
     
     if not os.path.exists(result_file):
         f = open(result_file , "w")
-        f.write('Flux,Flux_Error,TS,Time,met_start,met_end\n')
+        f.write('Flux,Flux_Error,TS,upper_lim,met_start,met_end,used_param_file\n')
         f.close()
         return [] , [] , []
     f = open(result_file , "r")
     times = [] 
     starts = []
     ends = []
+    logs = []
     for i in f.readlines():
         if i.split(",")[3].strip() == "Time":
             continue
-        times.append(float(i.split(",")[3]))
+        
         starts.append(float(i.split(",")[4]))
         ends.append(float(i.split(",")[5]))
-    return times , starts, ends
+        logs.append(i.split(",")[6].strip())
+    return starts, ends, logs
 
     
 def print_params(params):
@@ -1097,12 +1243,12 @@ def likelihood_wrapper(run_pars):
         # fix this, but code is still here for testing.
 
     
-    F2 = -99
+    up_lim = -1
     if ts < run_pars[0]["ts_lim"] and run_pars[0]["up_lim_lc"]:
         try:
-            F , Flow , Fhigh , DeltaLogL = compute_upper_lim(run_pars[0] , run_pars[4], outdir = run_pars[7])
+            up_lim , Flow , Fhigh , DeltaLogL = compute_upper_lim(run_pars[0] , run_pars[4], outdir = run_pars[7])
             
-            unc = -1
+            
             '''
             try:
             
@@ -1112,7 +1258,7 @@ def likelihood_wrapper(run_pars):
             '''
         except:
             try:
-                F = FermiTools_UpperLim(run_pars[0] , run_pars[4], outdir = run_pars[7])
+                up_lim = FermiTools_UpperLim(run_pars[0] , run_pars[4], outdir = run_pars[7])
                 #F2 = -99
             except:
                 return [0,0,0,0]
@@ -1124,28 +1270,13 @@ def likelihood_wrapper(run_pars):
         rf.close()
     
     
-    if F >= 0:
-        
-        
-        tmid = (run_pars[1] + run_pars[2]) / 2.0
-        tmid = met_to_tpeak(tmid, run_pars[0])
-        
-        with run_pars[6]:
-            
-            f = open(run_pars[5] , "a")
-            f.write(str(F) + "," + str(unc) + "," + str(ts) + "," + str(tmid))
-            f.write("," + str(run_pars[1]) + "," + str(run_pars[2]))
-            for i in log_notes:
-                f.write("," + str(i))
-            f.write("\n")
-            f.close()
-        
-    else:
-        print ("Warning; Flux is Negative!")
+    used_pfile = os.path.join(params["logdir"], f"{run_pars[1]}_{run_pars[2]}.yaml")
+    save_result(run_pars[0], run_pars[1], run_pars[2], F, unc, ts, up_lim,
+                 used_pfile, lock=run_pars[6])
         
     if run_pars[0]["cleanlc"]:
         cleanup(run_pars[0] , run_pars[4], all_files = True, outdir = run_pars[7])
-    return [F , unc , ts , tmid]
+    return [F , unc , ts, (run_pars[2] - run_pars[1]) / 2.0]
 
 def light_curve_singleproc(params, clobber, log = "mp_log"):
     '''
@@ -1265,7 +1396,7 @@ def light_curve_multiproc(params , clobber):
     t = start + step_seconds / 2.0
     tpeak_start = met_to_tpeak(start, params)
 
-    status_log, log_starts, log_ends = check_status(params["lc_logfile"])
+    log_starts, log_ends, log_files = check_status(params["result_log"])
     
     with mp.Manager() as manager:
         lock = manager.Lock()
@@ -1284,11 +1415,13 @@ def light_curve_multiproc(params , clobber):
                     t += step_seconds
                     id += 1
                     skip = True
+                    confirm_parameters(params, log_files[i])
+                    
             if skip:
                 continue
             
             
-            param_row = [params, st, et, clobber, fheader, params['lc_logfile'], lock, lcdir]
+            param_row = [params, st, et, clobber, fheader, params['result_log'], lock, lcdir]
             param_row.append( params["cleanlc"])
             center_t = met_to_tpeak(t , params)
             
@@ -1311,7 +1444,7 @@ def light_curve_multiproc(params , clobber):
     
     return results
 
-def false_positive_rate(params, clobber, log = "mp_log"):
+def false_positive_rate(params, clobber):
     '''
     Function to compute the false positive rate for a given nova
     This is done by running a light curve analysis on a set of
@@ -1344,7 +1477,7 @@ def false_positive_rate(params, clobber, log = "mp_log"):
     t = start + step_seconds / 2.0
     tpeak_start = met_to_tpeak(start, params)
 
-    status_log, log_starts, log_ends = check_status(params["bck_logfile"])
+    log_starts, log_ends, log_files = check_status(params["result_log"])
     
     with mp.Manager() as manager:
         lock = manager.Lock()
@@ -1358,7 +1491,7 @@ def false_positive_rate(params, clobber, log = "mp_log"):
             skip = False
             for k in range(len(log_starts)):
                 if st == log_starts[k] and et == log_ends[k]:
-                
+                    confirm_parameters(params, log_files[k])
                     print (f"Skipping {t} as it is already in the log file")
                     t += step_seconds
                     id += 1
@@ -1366,7 +1499,7 @@ def false_positive_rate(params, clobber, log = "mp_log"):
             if skip:
                 continue
             
-            param_row = [params, st, et, clobber, fheader, params["bck_logfile"], lock, lcdir]
+            param_row = [params, st, et, clobber, fheader, params["result_log"], lock, lcdir]
             param_row.append( params["cleanlc"])
             param_row.append( params["cleanlc"])
             center_t = met_to_tpeak(t , params)
@@ -1892,7 +2025,7 @@ def TS_Grid(params , starts , ends, up_lims = False, log_notes = None):
     grid_dir = params["grid_outdir"]
     
     params['up_lim_lc'] = up_lims
-    status_log, log_starts, log_ends = check_status(params["grid_logfile"])
+    status_log, log_starts, log_ends = check_status(params["result_log"])
     
     with mp.Manager() as manager:
         lock = manager.Lock()
@@ -1912,13 +2045,15 @@ def TS_Grid(params , starts , ends, up_lims = False, log_notes = None):
                 
                 for i in range(len(log_starts)):
                     if st == log_starts[i] and et == log_ends[i]:
+                        
                         print (f"Skipping {start} to {end} as it is already in the log file")
                         skip = True
+                        confirm_parameters(params , log_starts[i])
                         break
                 if skip:
                     continue
                 
-                param_row = [params, st, et, False, fheader, params["grid_logfile"], lock, grid_dir]
+                param_row = [params, st, et, False, fheader, params["result_log"], lock, grid_dir]
                 if log_notes is not None:
                     param_row.append(log_notes)
       
@@ -1953,9 +2088,11 @@ def run_analysis(params, log_notes = None):
         mid_time = (start_time + end_time) / 2.0
         tmid = met_to_tpeak(mid_time , params)
 
-        times, log_starts, log_ends = check_status(params["avg_logfile"])
+        log_starts, log_ends, log_files = check_status(params["result_log"])
         for i in range(len(log_starts)):
             if start_time == log_starts[i] and end_time == log_ends[i]:
+                match = confirm_parameters(params , log_files[i])
+                
                 print (f"Skipping avgerage run as it is already in the log file")
                 params["gen_av"] = False
                 run_analysis(params) ## Go do everything else
@@ -1974,38 +2111,23 @@ def run_analysis(params, log_notes = None):
         
         if TS < params["av_ts_lim"] and params["up_lim_av"]:
             start = time.time()
-            Flux = compute_upper_lim(params , "", outdir = av_dir)[0]
+            up_lim = compute_upper_lim(params , "", outdir = av_dir)[0]
             end = time.time()
             
-            # ! Commented out FermiTools Upper limits; nominally no longer
-            # ! necessary.
-            '''
-            s2 = time.time()
-            
-            try:
-                Flux2 = FermiTools_UpperLim(params, "", outdir = av_dir)
-            except:
-                Flux2 = -99
-            e2 = time.time()
-            '''
-            print (f"My Upper Limit Flux = {Flux}; runtime is {(end-start)/60.} m")
-            f = open(params["avg_logfile"] , "a")
-            f.write(str(F) + "," + str(0) + "," + str(TS) + "," + str(tmid))
-            f.write("," + str(start_time) + "," + str(end_time))
-            f.write("\n")
-            f.close()
+            print (f"My Upper Limit Flux = {up_lim}; runtime is {(end-start)/60.} m")
+
             
         else:
-            f = open(params["avg_logfile"] , "a")
-            f.write(str(F) + "," + str(F_err) + "," + str(TS) + "," + str(tmid))
-            f.write("," + str(start_time) + "," + str(end_time))
-            f.write("\n")
-            f.close()
+            up_lim = -1
         
         print ("Model TS value is", TS)
         
         print ("Model Flux is " , F)
         #params["input_model"] = "fit_model.xml"
+
+        used_pfile = os.path.join(params["logdir"], f"{start_time}_{end_time}.yaml")
+        save_parameters(params, used_pfile)
+        save_result(params, start_time, end_time, F, F_err, TS, up_lim, used_pfile, lock=None)
         
     ## Compute TS Maps
     if params["gen_ts"]:
