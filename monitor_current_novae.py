@@ -224,9 +224,11 @@ def setup_new_nova(name):
     
 def reset_results(name):
     '''
-    Resets the results of a nova. Deletes results based on bins from the last two
-    days, intended to ensure that all analysis is done with complete data sets.
+    Resets the results of a nova. Deletes results that might have been generated with incomplete data
     '''
+    
+    
+    
     dirname = os.path.join(os.environ['FERMI_MONITOR'], name)
     params= af.read_parameters(os.path.join(dirname, "parameters.yaml"))
     cwd = os.getcwd()
@@ -235,17 +237,6 @@ def reset_results(name):
     if not os.path.exists(params["grid_logfile"]):
         os.chdir(cwd)
         return 0
-    
-    max_met = 0
-    f = open(params["grid_logfile"], 'r')
-    for i in f.readlines():
-        if "Flux" in i:
-            continue
-        
-        sl = i.split(",")
-        
-        max_met = max(max_met, float(sl[5]))
-    f.close()
     
     new_logfile = ""
     f = open(params["grid_logfile"], 'r')
@@ -257,8 +248,10 @@ def reset_results(name):
         sl = i.split(",")
         
         end_met = float(sl[5])
+        data_end_met = float(sl[6])
         
-        if end_met == max_met: # Remove final bins, which likely are incomplete
+        
+        if data_end_met < end_met: # Remove bins that are incomplete
             continue
         new_logfile += i
         
@@ -308,7 +301,7 @@ def cleanup_monitoring_data(name):
     Cleans up the monitoring data by removing old files and directories.
     '''
     dirname = os.path.join(os.environ['FERMI_MONITOR'], name)
-    params= af.read_parameters(os.path.join(dirname, "parameters.yaml"))
+    params = af.read_parameters(os.path.join(dirname, "parameters.yaml"))
     cwd = os.getcwd()
     os.chdir(dirname)
     os.chdir("grid_results/")
@@ -323,7 +316,7 @@ def cleanup_monitoring_data(name):
             os.remove(i)
     os.chdir(cwd)
 
-def get_end_time(params):
+def get_end_time(params, met=False):
     '''
     Gets the end time of the monitoring period, computed based on the end of
     the current weekly data file.
@@ -340,6 +333,8 @@ def get_end_time(params):
     dtime = datetime.datetime.strptime(time, "%Y-%m-%dT%H:%M:%S")
     dtime = dtime.replace(tzinfo=datetime.timezone.utc)
     tmet = af.cal_to_met(dtime)
+    if met:
+        return tmet
     tpeak = af.met_to_tpeak( tmet, params)
     
     step = params['gridstep']
@@ -381,6 +376,7 @@ def main_loop(table_only=False, reset=True, name = None):
         
         time_since_peak = af.met_to_tpeak(current_met, params)
         stop = get_end_time(params) ## Computes last bin covered by weekly files.
+        last_met = get_end_time(params, met=True)
         
         params['max_end'] = stop
         params['max_start'] = stop
@@ -390,7 +386,7 @@ def main_loop(table_only=False, reset=True, name = None):
             if reset:
                 reset_results(names[i])
             cleanup_monitoring_data(names[i])
-            af.run_analysis(params)
+            af.run_analysis(params, [f"{last_met}"])
             cleanup_monitoring_data(names[i])
             #mark_result_as_incomplete(names[i])
             
