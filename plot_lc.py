@@ -99,7 +99,7 @@ def plot_light_curve(params, display=False, compile_csv = None):
     None
     '''
 
-    TS , Unc , Flux , upper_lim, st, end = read_results(params, mode = "lc")
+    TS  , Flux , Unc, upper_lim, st, end = read_results(params, mode = "lc")
     
     if len(Flux) == 0:
         return 0
@@ -214,7 +214,7 @@ def read_results(params, mode):
         starts, ends, fheaders = af.get_grid_bins(params)
         
     elif mode == "bck":
-        starts, ends, fheaders = af.get_background_bins(params)
+        starts, ends, fheaders = af.get_bck_bins(params)
         
     f = open(fname)
     
@@ -228,12 +228,12 @@ def read_results(params, mode):
         if "TS" in i:
             continue
         sl = i.split(",")
-        st = float(sl[4])
-        et = float(sl[5])
-        if st not in starts or et not in ends:
+        stt = float(sl[4])
+        ett = float(sl[5])
+        if stt not in starts or ett not in ends:
             continue
-        ind = starts.index(st)
-        if ends[ind] != et:
+        ind = starts.index(stt)
+        if ends[ind] != ett:
             continue
         
         Flux.append(float(sl[0]))
@@ -266,16 +266,12 @@ def TS_hist(params, compile_csv = None):
         print ("No Background directory specified, exiting")
         return 0
     
-
-    back_file = params["bck_logfile"]
     
-    if not os.path.exists(back_file):
-        print ("Error: No Background data found, exiting")
+    TS  , Flux , Unc, upper_lim , st , et = read_results(params, mode = "bck")
+    
+    if len(TS) == 0:
+        print ("No background data found, exiting")
         return 0
-    
-    TS , Unc , Flux , upper_lim , st , et = read_results(back_file, mode = "bck")
-    
-    
     ncol = 1 ## Change to 2 for a two-column figure.
     fdim = get_size(244 * ncol)
     fig = plt.figure(figsize = fdim)
@@ -403,11 +399,13 @@ def TS_Grid(params, return_TS = False, show = False, title = None):
     Plots the results from a TS Grid search
     '''
     
-    if not os.path.exists(params["grid_logfile"]):
-        print ("No TS Grid results found, exiting")
-        return 0
+
     
-    TS , Unc , Flux , upper_lim , Time, st , et = read_results(params, mode = "grid")
+    TS  , Flux , Unc, upper_lim , st , et = read_results(params, mode = "grid")
+    
+    if len(TS) == 0:
+        print ("No grid data found, exiting")
+        return 0
     
     start=  []
     end = []
@@ -418,7 +416,9 @@ def TS_Grid(params, return_TS = False, show = False, title = None):
     start = np.array(start)
     end = np.array(end)
     TSi = list(TS).index(max(TS))
-    print (f"Maximum TS is {max(TS)} at time {Time[TSi]}")
+    Time = (st[TSi] + et[TSi]) / 2.0
+    Time = af.met_to_tpeak(Time , params)
+    print (f"Maximum TS is {max(TS)} at time {Time}")
     #mark1 = plt.Circle(( end[TSi], start[TSi]) , 0.5, fill=False)
     ncol = 1 ## Change to 2 for a two-column figure.
     fdim = get_size(244 * ncol)
