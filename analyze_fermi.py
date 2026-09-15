@@ -505,8 +505,8 @@ def check_log(result_file):
                 keys.append(i.strip())
             continue
 
-        for i in range(len(keys)):
-            status[keys[i]].append(i.split(",")[i].strip())
+        for k in range(len(keys)):
+            status[keys[k]].append(i.split(",")[k].strip())
         
     return status
 
@@ -1468,6 +1468,33 @@ def light_curve_singleproc(params, clobber, log = "mp_log"):
     
     return results
 
+def get_light_curve_bins(params):
+    '''
+    function to get met start and end times for light curve bins
+    '''
+    
+    start = tpeak_to_met(params["lc_start"], params)
+    end = tpeak_to_met(params["lc_end"], params)
+    
+    window_half_seconds = 12 * 60 * 60 * params["window"]
+    step_seconds = 24 * 60 * 60 * params["lcstep"]
+    t = start + step_seconds / 2.0
+    tpeak_start = met_to_tpeak(start, params)
+    
+    fheaders = []
+    start_mets = []
+    end_mets = []
+    
+    while t < end:
+        fheader = f"_{params['window']}_{params['lcstep']}_{tpeak_start}_st{id}"
+        st = t - window_half_seconds
+        et = t + window_half_seconds
+        start_mets.append(st)
+        end_mets.append(et)
+        fheaders.append(fheader)
+        
+    return start_mets, end_mets, fheaders
+
 def light_curve_multiproc(params , clobber):
     '''
     Function to build a light curve
@@ -1485,28 +1512,25 @@ def light_curve_multiproc(params , clobber):
     None
     '''
  
-    start = tpeak_to_met(params["lc_start"], params)
-    end = tpeak_to_met(params["lc_end"], params)
+
     lcdir = params["lc_outdir"]
 
     ## Start by setting up our parameter array
     param_array = []
     
-    window_half_seconds = 12 * 60 * 60 * params["window"]
-    step_seconds = 24 * 60 * 60 * params["lcstep"]
-    t = start + step_seconds / 2.0
-    tpeak_start = met_to_tpeak(start, params)
+    start_mets, end_mets, fheaders = get_light_curve_bins(params)
 
     result_log = check_log(params["result_log"])
     
     with mp.Manager() as manager:
         lock = manager.Lock()
         id = 0
-        while t < end:
-
-            fheader = f"_{params['window']}_{params['lcstep']}_{tpeak_start}_st{id}"
-            st = t - window_half_seconds
-            et = t + window_half_seconds
+        for met_i in range(len(start_mets)):
+            
+            st = start_mets[met_i]
+            et = end_mets[met_i]
+            fheader = fheaders[met_i]
+            t = (et + st) / 2.0
             t_day = met_to_tpeak(t , params)
             skip = False
             for i in range(len(result_log["met_start"])):
@@ -1518,7 +1542,7 @@ def light_curve_multiproc(params , clobber):
                         if result_log["TS"][i] > params["ts_lim"] or not params["up_lim_lc"] or result_log["upper_limit"][i] > 0:
                                 
                             print (f"Skipping {t_day} as it is already in the log file")
-                            t += step_seconds
+                            
                             id += 1
                             skip = True
                             confirm_parameters(params, result_log["used_param_file"][i])
@@ -1530,7 +1554,7 @@ def light_curve_multiproc(params , clobber):
             param_row = [params, st, et, clobber, fheader, params['result_log'], lock, lcdir]
             param_row.append( params["cleanlc"])
             
-            t += step_seconds
+            
             id += 1
             param_array.append(param_row)
         ## maxtasksperchild = 1 is designed to resolve a memory usage problem
@@ -1547,6 +1571,33 @@ def light_curve_multiproc(params , clobber):
     
     return results
 
+def get_bck_bins(params):
+    
+    '''
+    Function to get MET start and end times for background bining
+    '''
+    
+    start = tpeak_to_met(params["bck_start"], params)
+    end = tpeak_to_met(params["bck_end"], params)
+    window_half_seconds = 12 * 60 * 60 * params["window"]
+    step_seconds = window_half_seconds * 2.0 ## No overlap for this analysis
+    t = start + step_seconds / 2.0
+    tpeak_start = met_to_tpeak(start, params)
+
+    met_starts = []
+    met_ends = []
+    fheaders = []
+    while t < end:
+        
+        fheader = f"_{params['window']}_{params['lcstep']}_{tpeak_start}_st{id}"
+        st = t - window_half_seconds
+        et = t + window_half_seconds
+        
+        fheaders.append(fheader)
+        met_starts.append(st)
+        met_ends.append(et)
+        
+    return met_starts, met_ends, fheaders
 def false_positive_rate(params, clobber):
     '''
     Function to compute the false positive rate for a given nova
@@ -1567,38 +1618,36 @@ def false_positive_rate(params, clobber):
     None
     '''
     
-    start = tpeak_to_met(params["bck_start"], params)
-    end = tpeak_to_met(params["bck_end"], params)
+
     lcdir = params["bck_outdir"]
-        # // log =  log
-        ## Start by setting up our parameter array
+
     param_array = []
     
-    window_half_seconds = 12 * 60 * 60 * params["window"]
-    step_seconds = window_half_seconds * 2.0 ## No overlap for this analysis
-    
-    t = start + step_seconds / 2.0
-    tpeak_start = met_to_tpeak(start, params)
+
 
     result_log = check_log(params["result_log"])
+    
+    met_starts, met_ends, fheaders = get_bck_bins(params)
     
     with mp.Manager() as manager:
         lock = manager.Lock()
         id = 0
-        while t < end:
+        for met_i in range(len(met_starts)):
 
-            fheader = f"_{params['window']}_{params['lcstep']}_{tpeak_start}_st{id}"
-            st = t - window_half_seconds
-            et = t + window_half_seconds
+            fheader = fheaders[met_i]
+            st = met_starts[met_i]
+            et = met_ends[met_i]
             
+            t = (et + st) / 2.0
+            t_day = met_to_tpeak(t , params)
             skip = False
             for k in range(len(result_log["met_start"])):
                 if st == result_log["met_start"][k] and et == result_log["met_end"][k]:
                     if et <= result_log["data_end"][k] and st >= result_log["data_start"][k]:
                         
                         confirm_parameters(params, result_log["log_files"][k])
-                        print (f"Skipping {t} as it is already in the log file")
-                        t += step_seconds
+                        print (f"Skipping {t_day} as it is already in the log file")
+                       
                         id += 1
                         skip = True
             if skip:
@@ -1612,7 +1661,7 @@ def false_positive_rate(params, clobber):
             if not os.path.exists(log_file) or clobber:
                 
                 param_array.append(param_row)
-            t += step_seconds
+            
             id += 1
 
         ## maxtasksperchild = 1 is designed to resolve a memory usage problem
@@ -2124,6 +2173,35 @@ def find_max_TS(params):
     print (Bx , Bf)
     return Bx , Bf
 
+def get_grid_bins(params):
+    
+    '''
+    Get met_start and met_end for TS grid search
+    '''
+    
+    start_mets = []
+    end_mets = []
+    starts = np.arange(params["min_start"] , params["max_start"] , params["gridstep"])
+    ends = np.arange(params["min_end"] , params["max_end"] , params["gridstep"])
+    if params["min_start"] == params["max_start"]:
+        starts = [params["min_start"]]
+    if params["min_end"] == params["max_end"]:
+        ends = [params["min_end"]]
+    
+    fheaders = []
+    for start in starts:
+        for end in ends:
+            if end <= start:
+                continue
+            fheader = f"_grid_{start}_{end}"
+            st = tpeak_to_met(start, params)
+            et = tpeak_to_met(end, params)
+            fheaders.append(fheader)
+            start_mets.append(st)
+            end_mets.append(et)
+            
+    return start_mets, end_mets, fheaders
+
 def TS_Grid(params , starts , ends, up_lims = False, log_notes = None):
     ## Start by setting up our parameter array
     param_array = []
@@ -2136,28 +2214,24 @@ def TS_Grid(params , starts , ends, up_lims = False, log_notes = None):
         lock = manager.Lock()
         id = 0
         
-       
-        
-
-        for start in starts:
-            for end in ends:
-                if end <= start:
-                    continue
-                fheader = f"_grid_{start}_{end}"
-                st = tpeak_to_met(start, params)
-                et = tpeak_to_met(end, params)
-                skip = False
-                
-                for i in range(len(result_log["met_start"])):
-                    if st == result_log["met_start"][i] and et == result_log["met_end"][i]:
-                        if et <= result_log["data_end"][i] and st >= result_log["data_start"][i]:
-                            if not up_lims or result_log["upper_limit"][i] > 0 or result_log["TS"][i] > params["ts_lim"]:
-                                print (f"Skipping {start} to {end} as it is already in the log file")
-                                skip = True
-                                confirm_parameters(params , log_starts[i])
-                                break
-                        if skip:
-                            continue
+        start_mets, end_mets, fheaders = get_grid_bins(params)
+        for met_i in range(len(start_mets)):
+            st = start_mets[met_i]
+            et = end_mets[met_i]
+            fheader = fheaders[met_i] 
+            start = round(met_to_tpeak(st, params),1)
+            end = round(met_to_tpeak(et, params),1)
+            
+            for i in range(len(result_log["met_start"])):
+                if st == result_log["met_start"][i] and et == result_log["met_end"][i]:
+                    if et <= result_log["data_end"][i] and st >= result_log["data_start"][i]:
+                        if not up_lims or result_log["upper_limit"][i] > 0 or result_log["TS"][i] > params["ts_lim"]:
+                            print (f"Skipping {start} to {end} as it is already in the log file")
+                            skip = True
+                            confirm_parameters(params , result_log["used_param_file"][i])
+                            break
+                    if skip:
+                        continue
                 
                 param_row = [params, st, et, False, fheader, params["result_log"], lock, grid_dir]
                 if log_notes is not None:
