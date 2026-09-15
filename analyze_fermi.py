@@ -26,6 +26,7 @@ import gen_alg as ga
 import contextlib
 import traceback
 
+
 # for reading and editing XML files.
 from xml.etree import ElementTree as ET
 
@@ -383,6 +384,8 @@ def read_parameters(pfile):
             
             print (warning)
             
+        '''
+        Now obsolete, all files merged.
         params['lc_logfile'] = (params['lc_outdir']
                                 + "lightcurve_results.csv")
             
@@ -397,7 +400,7 @@ def read_parameters(pfile):
         
         params["bck_logfile"] = (params['bck_outdir']
                                 + "bck_results.csv")
-        
+        '''
         
         return params
     
@@ -407,27 +410,74 @@ def save_result(params, met_start, met_end, flux, flux_err, ts, upper_limit,
     Function to add results from a likelihood analysis to our run log.
     '''
     
+    data_start, data_end = check_data_valid_times()
+    
     fname = params["result_log"]
     
-    if lock is not None:
-        with lock:
+    if not os.path.exists(fname):
+        overwrite = False
+    else:
+        logs = check_log(fname)
+        for i in range(len(logs["met_start"])):
+            if met_start == logs["met_start"][i] and met_end == logs["met_end"][i]:
+                overwrite = True
+                break
+            else:
+                overwrite = False
+    if not overwrite:
+        if lock is not None:
+            with lock:
+                if not os.path.exists(fname):
+                    f = open(fname , "w")
+                    f.write('Flux,Flux_Error,TS,upper_lim,met_start,met_end,used_param_file,data_start,data_end\n')
+                    f.close()
+                
+                f = open(fname , "a")
+                f.write(f"{flux},{flux_err},{ts},{upper_limit},{met_start},{met_end},{used_param_file},{data_start},{data_end}\n")
+                f.close()
+        else:
             if not os.path.exists(fname):
                 f = open(fname , "w")
-                f.write('Flux,Flux_Error,TS,upper_lim,met_start,met_end,used_param_file\n')
+                f.write('Flux,Flux_Error,TS,upper_lim,met_start,met_end,used_param_file,data_start,data_end\n')
                 f.close()
             f = open(fname , "a")
-            f.write(f"{flux},{flux_err},{ts},{upper_limit},{met_start},{met_end},{used_param_file}\n")
+            f.write(f"{flux},{flux_err},{ts},{upper_limit},{met_start},{met_end},{used_param_file},{data_start},{data_end}\n")
             f.close()
-    else:
-        if not os.path.exists(fname):
-            f = open(fname , "w")
-            f.write('Flux,Flux_Error,TS,upper_lim,met_start,met_end,used_param_file\n')
-            f.close()
-        f = open(fname , "a")
-        f.write(f"{flux},{flux_err},{ts},{upper_limit},{met_start},{met_end},{used_param_file}\n")
-        f.close()
 
-def check_status(result_file):
+    elif overwrite:
+        
+        if lock is not None:
+            with lock:
+                f = open(fname , "r")
+                lines = f.readlines()
+                f.close()
+                f = open(fname , "w")
+                for line in lines:
+                    if line.startswith("Flux"):
+                        f.write(line)
+                        continue
+                    if line.split(",")[4] == str(met_start) and line.split(",")[5] == str(met_end):
+                        f.write(f"{flux},{flux_err},{ts},{upper_limit},{met_start},{met_end},{used_param_file},{data_start},{data_end}\n")
+                    else:
+                        f.write(line)
+                f.close()
+        else:
+            f = open(fname , "r")
+            lines = f.readlines()
+            f.close()
+            f = open(fname , "w")
+            for line in lines:
+                if line.startswith("Flux"):
+                    f.write(line)
+                    continue
+                if line.split(",")[4] == str(met_start) and line.split(",")[5] == str(met_end):
+                    f.write(f"{flux},{flux_err},{ts},{upper_limit},{met_start},{met_end},{used_param_file},{data_start},{data_end}\n")
+                else:
+                    f.write(line)
+            f.close()
+        
+
+def check_log(result_file):
     '''
     Utility function to check status of a run
     Reads in a result file and will return an array of times that have
@@ -440,18 +490,21 @@ def check_status(result_file):
         f.close()
         return [] , [] , []
     f = open(result_file , "r")
-    times = [] 
-    starts = []
-    ends = []
-    logs = []
+    status = {}
+    keys = [] 
+    header = True
     for i in f.readlines():
-        if i.split(",")[3].strip() == "Time":
+        if header:
+            header = False
+            for i in i.split(","):
+                status[i.strip()] = []
+                keys.append(i.strip())
             continue
+
+        for i in range(len(keys)):
+            status[keys[i]].append(i.split(",")[i].strip())
         
-        starts.append(float(i.split(",")[4]))
-        ends.append(float(i.split(",")[5]))
-        logs.append(i.split(",")[6].strip())
-    return starts, ends, logs
+    return status
 
     
 def print_params(params):
@@ -805,6 +858,50 @@ def bin_data(params, clobber, fheader, lock=None, outdir = "./"):
     if not os.path.exists(outdir + f'{params["name"]}{fheader}_filtered_ccube.fits') or clobber:
         checklocks(lock)
         my_apps.evtbin.run()
+
+def check_data_valid_times():
+    '''
+    Function to read fits headers of available data, to record when our data
+    coverage is valid
+    '''
+    
+    f = open("events.txt", "r")
+    files = f.readlines()
+    start_times = []
+    end_times = []
+    
+    for file in files:
+        hdu = fits.open(file.strip())
+        end_time = hdu[0].header['DATE-END'].split(".")[0]
+        start_time = hdu[0].header['DATE-OBS'].split(".")[0]
+        hdu.close()
+        end_time =  dtime.datetime.strptime(end_time, "%Y-%m-%dT%H:%M:%S")
+        start_time = dtime.datetime.strptime(start_time, "%Y-%m-%dT%H:%M:%S")
+        
+        end_time = end_time.replace(tzinfo=dtime.timezone.utc)
+        start_time = start_time.replace(tzinfo=dtime.timezone.utc)
+        
+        smet = cal_to_met(start_time)
+        emet = cal_to_met(end_time)
+        
+        start_times.append(smet)
+        end_times.append(emet)
+        
+    start_times = np.array(start_times)
+    end_times = np.array(end_times)
+    ii = np.argsort(start_times)
+    start_times = start_times[ii]
+    end_times = end_times[ii]
+    
+    for i in range(len(start_times) - 1):
+        overlap = end_times[i]  - start_times[i+1]
+        if overlap < -60:
+            print ("Warning: Data has gaps of more than one minute, this is likely not intentional.")
+            raise ValueError()
+        
+    
+    return min(start_times) , max(end_times)
+
 
 def fit_model(params, fheader, get_like, inmod = "No" , opt = 'NewMINUIT', silent=False, lock=None, outdir = "./"):
     '''
@@ -1396,7 +1493,7 @@ def light_curve_multiproc(params , clobber):
     t = start + step_seconds / 2.0
     tpeak_start = met_to_tpeak(start, params)
 
-    log_starts, log_ends, log_files = check_status(params["result_log"])
+    result_log = check_log(params["result_log"])
     
     with mp.Manager() as manager:
         lock = manager.Lock()
@@ -1408,14 +1505,19 @@ def light_curve_multiproc(params , clobber):
             et = t + window_half_seconds
             t_day = met_to_tpeak(t , params)
             skip = False
-            for i in range(len(log_starts)):
-                if st == log_starts[i] and et == log_ends[i]:
-                
-                    print (f"Skipping {t_day} as it is already in the log file")
-                    t += step_seconds
-                    id += 1
-                    skip = True
-                    confirm_parameters(params, log_files[i])
+            for i in range(len(result_log["met_start"])):
+                ## First, check if this time window exists already
+                if st == result_log["met_start"][i] and et == result_log["met_end"][i]:
+                    ## Next, check if this window was run with a complete data set. If not, we will rerun it.
+                    if et <= result_log["data_end"][i] and st >= result_log["data_start"][i]:
+                        ## Finally, check if upper limit was computed if need be, and if not then we will rerun it.
+                        if result_log["TS"][i] > params["ts_lim"] or not params["up_lim_lc"] or result_log["upper_limit"][i] > 0:
+                                
+                            print (f"Skipping {t_day} as it is already in the log file")
+                            t += step_seconds
+                            id += 1
+                            skip = True
+                            confirm_parameters(params, result_log["used_param_file"][i])
                     
             if skip:
                 continue
@@ -1423,9 +1525,6 @@ def light_curve_multiproc(params , clobber):
             
             param_row = [params, st, et, clobber, fheader, params['result_log'], lock, lcdir]
             param_row.append( params["cleanlc"])
-            center_t = met_to_tpeak(t , params)
-            
-            
             
             t += step_seconds
             id += 1
@@ -2077,7 +2176,7 @@ def TS_Grid(params , starts , ends, up_lims = False, log_notes = None):
 
 def run_analysis(params, log_notes = None):
     
-
+    check_data_valid_times()
     ##Average Run First
     if params["gen_av"]:
         
