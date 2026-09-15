@@ -506,8 +506,10 @@ def check_log(result_file):
             continue
 
         for k in range(len(keys)):
-            status[keys[k]].append(i.split(",")[k].strip())
-        
+            try:
+                status[keys[k]].append(float(i.split(",")[k].strip()))
+            except:
+                status[keys[k]].append(i.split(",")[k].strip())
     return status
 
     
@@ -1371,7 +1373,7 @@ def likelihood_wrapper(run_pars):
         rf.close()
     
     
-    used_pfile = os.path.join(params["logdir"], f"{run_pars[1]}_{run_pars[2]}.yaml")
+    used_pfile = os.path.join(run_pars[0]["logdir"], f"{run_pars[1]}_{run_pars[2]}.yaml")
     save_result(run_pars[0], run_pars[1], run_pars[2], F, unc, ts, up_lim,
                  used_pfile, lock=run_pars[6])
         
@@ -1486,13 +1488,14 @@ def get_light_curve_bins(params):
     end_mets = []
     
     while t < end:
-        fheader = f"_{params['window']}_{params['lcstep']}_{tpeak_start}_st{id}"
+        fheader = f"_{params['window']}_{params['lcstep']}_{met_to_tpeak(t, params)}"
         st = t - window_half_seconds
         et = t + window_half_seconds
         start_mets.append(st)
         end_mets.append(et)
         fheaders.append(fheader)
-        
+        t += step_seconds
+    
     return start_mets, end_mets, fheaders
 
 def light_curve_multiproc(params , clobber):
@@ -1524,7 +1527,7 @@ def light_curve_multiproc(params , clobber):
     
     with mp.Manager() as manager:
         lock = manager.Lock()
-        id = 0
+        
         for met_i in range(len(start_mets)):
             
             st = start_mets[met_i]
@@ -1543,7 +1546,7 @@ def light_curve_multiproc(params , clobber):
                                 
                             print (f"Skipping {t_day} as it is already in the log file")
                             
-                            id += 1
+                            
                             skip = True
                             confirm_parameters(params, result_log["used_param_file"][i])
                     
@@ -1555,7 +1558,7 @@ def light_curve_multiproc(params , clobber):
             param_row.append( params["cleanlc"])
             
             
-            id += 1
+            
             param_array.append(param_row)
         ## maxtasksperchild = 1 is designed to resolve a memory usage problem
         ## Probably mildly inneficient, but better than consuming many GB of
@@ -1589,14 +1592,14 @@ def get_bck_bins(params):
     fheaders = []
     while t < end:
         
-        fheader = f"_{params['window']}_{params['lcstep']}_{tpeak_start}_st{id}"
+        fheader = f"_{params['window']}_{params['lcstep']}_{met_to_tpeak(t, params)}"
         st = t - window_half_seconds
         et = t + window_half_seconds
         
         fheaders.append(fheader)
         met_starts.append(st)
         met_ends.append(et)
-        
+        t += step_seconds
     return met_starts, met_ends, fheaders
 def false_positive_rate(params, clobber):
     '''
@@ -1645,7 +1648,7 @@ def false_positive_rate(params, clobber):
                 if st == result_log["met_start"][k] and et == result_log["met_end"][k]:
                     if et <= result_log["data_end"][k] and st >= result_log["data_start"][k]:
                         
-                        confirm_parameters(params, result_log["log_files"][k])
+                        confirm_parameters(params, result_log["used_param_file"][k])
                         print (f"Skipping {t_day} as it is already in the log file")
                        
                         id += 1
@@ -2273,8 +2276,8 @@ def run_analysis(params, log_notes = None):
         for i in range(len(result_log["met_start"])):
             if start_time == result_log["met_start"][i] and end_time == result_log["met_end"][i]:
                 if result_log["TS"][i] > params["av_ts_lim"] or not params["up_lim_av"] or result_log["upper_limit"][i] > 0:
-                    if start_time <= result_log["data_start"][i] and end_time >= result_log["data_end"][i]:
-                        match = confirm_parameters(params , result_log["log_files"][i])
+                    if start_time >= result_log["data_start"][i] and end_time <= result_log["data_end"][i]:
+                        match = confirm_parameters(params , result_log["used_param_file"][i])
                         
                         print (f"Skipping avgerage run as it is already in the log file")
                         params["gen_av"] = False
