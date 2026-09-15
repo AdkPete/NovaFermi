@@ -270,6 +270,9 @@ def confirm_parameters(params, yaml_fname):
     if yaml_fname == "None":
         print ("Warning, no used parameter file specified, skipping consistency checks")
         return True
+    elif not os.path.exists(yaml_fname):
+        print ("Warning, used parameter file not found, skipping consistency checks")
+        return True
     old_params, old_spec_params, old_free_params = load_used_parameters(yaml_fname)
     
     input_model = params["input_model"]
@@ -903,7 +906,9 @@ def check_data_valid_times():
         overlap = end_times[i]  - start_times[i+1]
         if overlap < -60:
             print ("Warning: Data has gaps of more than one minute, this is likely not intentional.")
-            raise ValueError()
+            print (overlap)
+            
+            
         
     
     return min(start_times) , max(end_times)
@@ -1550,8 +1555,8 @@ def light_curve_multiproc(params , clobber):
                             skip = True
                             confirm_parameters(params, result_log["used_param_file"][i])
                     
-            if skip:
-                continue
+                if skip:
+                    continue
             
             
             param_row = [params, st, et, clobber, fheader, params['result_log'], lock, lcdir]
@@ -2218,7 +2223,9 @@ def TS_Grid(params , starts , ends, up_lims = False, log_notes = None):
         id = 0
         
         start_mets, end_mets, fheaders = get_grid_bins(params)
+        
         for met_i in range(len(start_mets)):
+            skip = False
             st = start_mets[met_i]
             et = end_mets[met_i]
             fheader = fheaders[met_i] 
@@ -2233,14 +2240,15 @@ def TS_Grid(params , starts , ends, up_lims = False, log_notes = None):
                             skip = True
                             confirm_parameters(params , result_log["used_param_file"][i])
                             break
-                    if skip:
-                        continue
-                
-                param_row = [params, st, et, False, fheader, params["result_log"], lock, grid_dir]
-                if log_notes is not None:
-                    param_row.append(log_notes)
-      
-                param_array.append(param_row)
+            if skip:
+                continue
+            
+            param_row = [params, st, et, False, fheader, params["result_log"], lock, grid_dir]
+            if log_notes is not None:
+                param_row.append(log_notes)
+    
+            param_array.append(param_row)
+        
         ## maxtasksperchild = 1 is designed to resolve a memory usage problem
         ## Probably mildly inneficient, but better than consuming many GB of
         ## RAM per process.

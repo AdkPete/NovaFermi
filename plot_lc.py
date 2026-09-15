@@ -232,10 +232,13 @@ def read_results(params, mode):
         ett = float(sl[5])
         if stt not in starts or ett not in ends:
             continue
-        ind = starts.index(stt)
-        if ends[ind] != ett:
+        skip = True
+        for k in range(len(starts)):
+            if starts[k] == stt and ends[k] == ett:
+                skip = False
+                break
+        if skip:
             continue
-        
         Flux.append(float(sl[0]))
         Unc.append(float(sl[1]))
         TS.append(float(sl[2]))
@@ -398,91 +401,92 @@ def TS_Grid(params, return_TS = False, show = False, title = None):
     '''
     Plots the results from a TS Grid search
     '''
-    
+    from matplotlib.patches import Rectangle
 
     
     TS  , Flux , Unc, upper_lim , st , et = read_results(params, mode = "grid")
-    
-    if len(TS) == 0:
-        print ("No grid data found, exiting")
-        return 0
-    
-    start=  []
-    end = []
     for i in range(len(st)):
-        start.append(af.met_to_tpeak(st[i] , params))
-        end.append(af.met_to_tpeak(et[i] , params))
+        st[i] = af.met_to_tpeak(st[i], params)
+        et[i] = af.met_to_tpeak(et[i], params)
     
-    start = np.array(start)
-    end = np.array(end)
-    TSi = list(TS).index(max(TS))
-    Time = (st[TSi] + et[TSi]) / 2.0
-    Time = af.met_to_tpeak(Time , params)
-    print (f"Maximum TS is {max(TS)} at time {Time}")
-    #mark1 = plt.Circle(( end[TSi], start[TSi]) , 0.5, fill=False)
-    ncol = 1 ## Change to 2 for a two-column figure.
-    fdim = get_size(244 * ncol)
-    fig = plt.figure(figsize = fdim)
-    
-    plt.rcParams.update({'font.size': 8})
-    plt.rcParams.update({'lines.markersize':2.5})
-    # Build square, edge-to-edge cells from the grid coordinates.
-    xvalues = np.sort(np.unique(end))
-    yvalues = np.sort(np.unique(start))
-    xedges = np.r_[xvalues[0] - (xvalues[1] - xvalues[0]) / 2,
-                   (xvalues[:-1] + xvalues[1:]) / 2,
-                   xvalues[-1] + (xvalues[-1] - xvalues[-2]) / 2]
-    yedges = np.r_[yvalues[0] - (yvalues[1] - yvalues[0]) / 2,
-                   (yvalues[:-1] + yvalues[1:]) / 2,
-                   yvalues[-1] + (yvalues[-1] - yvalues[-2]) / 2]
-    TSgrid = np.full((len(yvalues), len(xvalues)), np.nan)
-    for x, y, value in zip(end, start, TS):
-        TSgrid[np.searchsorted(yvalues, y), np.searchsorted(xvalues, x)] = value
-    plt.pcolormesh(xedges, yedges, TSgrid, shading='flat')
-    #plt.gca().add_artist(mark1)
-    plt.colorbar(label="TS")
-    plt.scatter(end[TSi] , start[TSi] , marker = "s", facecolors =  'none',  edgecolors = "black",
-                s = plt.rcParams['lines.markersize'] ** 2 * 5)
-    plt.ylabel("Start Time (days)")
-    plt.xlabel("End Time (days)")
-    plt.gca().yaxis.set_ticks_position('both')
-    plt.gca().xaxis.set_ticks_position('both')
-    plt.tight_layout()
-    plt.title(title)
+    # et, st, TS are assumed to be 1D arrays sampled on a regular grid
+    et_vals = np.unique(et)
+    st_vals = np.unique(st)
+
+    # Build 2D grid of TS values matching (st, et) order
+    TS_grid = np.full((len(st_vals), len(et_vals)), np.nan)
+    et_idx = np.searchsorted(et_vals, et)
+    st_idx = np.searchsorted(st_vals, st)
+    TS_grid[st_idx, et_idx] = TS
+
+    # Cell edges (so cells are centered on data values)
+    dx = np.min(np.diff(et_vals))
+    dy = np.min(np.diff(st_vals))
+    et_edges = np.concatenate([et_vals - dx/2, [et_vals[-1] + dx/2]])
+    st_edges = np.concatenate([st_vals - dy/2, [st_vals[-1] + dy/2]])
+
+    fig, ax = plt.subplots()
+    mesh = ax.pcolormesh(et_edges, st_edges, TS_grid, shading='flat')
+    ax.set_xlabel("End Time (days since peak)")
+    ax.set_ylabel("Start Time (days since peak)")
+    ax.yaxis.set_ticks_position('both')
+    fig.colorbar(mesh, label="TS")
+
+    # Find the cell with the largest TS value (ignoring NaNs from missing grid points)
+    max_st_idx, max_et_idx = np.unravel_index(np.nanargmax(TS_grid), TS_grid.shape)
+
+    # Outline that cell using its edge coordinates
+    rect = Rectangle(
+        (et_edges[max_et_idx], st_edges[max_st_idx]),  # lower-left corner
+        dx, dy,
+        fill=False, edgecolor='black', linewidth=2
+    )
+    ax.add_patch(rect)
+    if title is not None:
+        ax.set_title(title)
+        
     plt.savefig(params["figdir"] + "TSGrid.pdf")
     if show:
         plt.show()
-    plt.close()
-    
-    Fluxgrid = np.full((len(yvalues), len(xvalues)), np.nan)
-    for x, y, value in zip(end, start, Flux):
-        Fluxgrid[np.searchsorted(yvalues, y), np.searchsorted(xvalues, x)] = np.log10(value)
-    plt.pcolormesh(xedges, yedges, Fluxgrid, shading='flat')
-    #plt.gca().add_artist(mark1)
-    plt.colorbar(label="log10(Flux)")
-    plt.scatter(end[TSi] , start[TSi] , marker = "s", facecolors =  'none',  edgecolors = "black",
-                s = plt.rcParams['lines.markersize'] ** 2 * 5)
-    plt.ylabel("Start Time (days)")
-    plt.xlabel("End Time (days)")
-    plt.gca().yaxis.set_ticks_position('both')
-    plt.gca().xaxis.set_ticks_position('both')
-    plt.savefig(params["figdir"] + "FluxGrid.pdf")
-    plt.close()
-    
-    if return_TS:
-        return max(TS), Time[TSi]
-    
-    ## Print some useful stats
-    ii = np.where(np.array(TS) >= 9)
-    if len(ii[0]) == 0:
-        print ("No significant bins detected")
-        return max(TS), Time[TSi]
-    print ("Maximum flux in a significantly detected bin")
-    
-    print (np.max(np.array(Flux)[ii]))
-    print (start[ii[0][0]],end[ii[0][0]])
-    return max(TS), Time[TSi]
+        
+       # Build 2D grid of TS values matching (st, et) order
+    Flux_grid = np.full((len(st_vals), len(et_vals)), np.nan)
+    et_idx = np.searchsorted(et_vals, et)
+    st_idx = np.searchsorted(st_vals, st)
+    Flux_grid[st_idx, et_idx] = Flux
 
+    # Cell edges (so cells are centered on data values)
+    dx = np.min(np.diff(et_vals))
+    dy = np.min(np.diff(st_vals))
+    et_edges = np.concatenate([et_vals - dx/2, [et_vals[-1] + dx/2]])
+    st_edges = np.concatenate([st_vals - dy/2, [st_vals[-1] + dy/2]])
+
+    fig, ax = plt.subplots()
+    mesh = ax.pcolormesh(et_edges, st_edges, Flux_grid, shading='flat')
+    ax.set_xlabel("End Time (days since peak)")
+    ax.set_ylabel("Start Time (days since peak)")
+    ax.yaxis.set_ticks_position('both')
+    fig.colorbar(mesh, label="Flux")
+
+    # Find the cell with the largest TS value (ignoring NaNs from missing grid points)
+    max_st_idx, max_et_idx = np.unravel_index(np.nanargmax(Flux_grid), Flux_grid.shape)
+
+    # Outline that cell using its edge coordinates
+    rect = Rectangle(
+        (et_edges[max_et_idx], st_edges[max_st_idx]),  # lower-left corner
+        dx, dy,
+        fill=False, edgecolor='black', linewidth=2
+    )
+    ax.add_patch(rect)
+    if title is not None:
+        ax.set_title(title)
+        
+    plt.savefig(params["figdir"] + "FluxGrid.pdf")
+    if show:
+        plt.show()
+        
+    if return_TS:
+        return max(TS), st[max_st_idx]
 if __name__ == "__main__":
     params = af.read_parameters(sys.argv[1])
     plot_TS_search(params)
