@@ -99,9 +99,9 @@ def plot_light_curve(params, display=False, compile_csv = None):
     None
     '''
 
-    TS , Unc , Flux , Time, st, end = read_results(params["lc_logfile"])
+    TS , Unc , Flux , upper_lim, st, end = read_results(params, mode = "lc")
     
-    if len(Time) == 0:
+    if len(Flux) == 0:
         return 0
         
     if len(sys.argv) > 2:
@@ -112,8 +112,14 @@ def plot_light_curve(params, display=False, compile_csv = None):
     
     #ul2 = ul2[ii]
     ww = (end - st) / (24 * 60 * 60)
-    if len(Time) == 0:
+    if len(Flux) == 0:
         return 0
+    
+    Time = []
+    Times = (end + st) / 2.0
+    for t in Times:
+        Time.append(af.met_to_tpeak(t , params))
+    Time = np.array(Time)
     
     ncol = 1 ## Change to 2 for a two-column figure.
     fdim = get_size(244 * ncol)
@@ -132,15 +138,15 @@ def plot_light_curve(params, display=False, compile_csv = None):
         plt.show()
     plt.close()
     
-    det = np.where(TS >= 4)
-    lim = np.where(TS < 4)
+    det = np.where(TS >= params["ts_lim"])
+    lim = np.where(( TS < params["ts_lim"]) & (upper_lim > 0))
     
     ncol = 1 ## Change to 2 for a two-column figure.
     fdim = get_size(244 * ncol)
     fig = plt.figure(figsize = fdim)
     plt.rcParams.update({'font.size': 8})
-    plt.scatter(Time[lim] , Flux[lim] , color = "orange" , marker = "v")
-    plt.errorbar(Time[lim], Flux[lim] , xerr = ww[lim] , color = "orange" , ls = "none")
+    plt.scatter(Time[lim] , upper_lim[lim] , color = "orange" , marker = "v")
+    plt.errorbar(Time[lim], upper_lim[lim] , xerr = ww[lim] , color = "orange" , ls = "none")
     plt.scatter(Time[det] , Flux[det], color = "blue")
     plt.errorbar(Time[det] , Flux[det] , yerr = Unc[det] , xerr = ww[det] , ls = 'none', color = "blue")
     plt.yscale('log')
@@ -184,152 +190,66 @@ def plot_light_curve(params, display=False, compile_csv = None):
     plt.savefig(params["figdir"] + "ULS.pdf")
     plt.close()
 
-def compile_bck_data(params):
+
+def read_results(params, mode):
     '''
-    Utility function to compile all of the multi-processing logs into 
-    a singular csv file.
-    
-    Parameters
-    __________
-    
-    params : dict : parameter dict from read_parameters
-    
-    Returns
-    _______
-    None
-    
+    Function to read in required data.
+    mode can either be lc, grid, or bck
     '''
+    if mode != "lc" and mode != "grid" and mode != "bck":
+        print ("Error: mode must be either lc, grid, or bck")
+        raise ValueError
     
-    if "bck_outdir" not in params.keys():
-        return 0
-
-    output = params["bck_outdir"] + params["name"] + "bck_data.csv"
-    
-    
-    dir = params["bck_outdir"] 
-    Flux = []
-    Unc = []
-    Time = []
-    TS = []
-    METs = []
-    
-    for i in os.listdir(dir):
-        fname = os.path.join(dir , i)
-        if ".csv" not in fname or "mp" not in fname or str(params["window"]) not in fname or str(params["lcstep"]) not in fname:
-            continue
-        elif "grid" in fname:
-            continue
-        f = open(fname)
-        for line in f.readlines():
-            split_line = line.split(",")
-            Flux.append(float(split_line[0]))
-            Unc.append(float(split_line[1]))
-            TS.append(float(split_line[2]))
-            MET = float(split_line[3])
-            METs.append(MET)
-            tpeak = af.met_to_tpeak(MET , params)
-            Time.append(tpeak)
-            break
-        
-    METs = np.array(METs)
-    TS = np.array(TS)
-    Flux = np.array(Flux)
-    Unc = np.array(Unc)
-    Time = np.array(Time)
-    
-    
-    if len(METs) == 0:
-        print ("No LC Data Found, exiting now")
-        return 0
-    isort = np.argsort(Time)
-    out_file = open(output, "w")
-    
-    header = "Time since peak (days),Fermi MET (seconds),TS,Flux,Flux"
-    header += " Uncertainty\n"
-    out_file.write(header)
-    
-    for ind in isort:
-        csv_line = f"{Time[ind]},{METs[ind]},{TS[ind]},{Flux[ind]},{Unc[ind]}"#//,{ULS[ind]}"
-        out_file.write(csv_line + "\n")
-    out_file.close()
-    
-    return 0
-
-def load_bck_data(params):
-    
-    '''
-    Function to load background data
-    '''
-    
-    return 0
-def load_data(params , compiled_csv = None):
-    if compiled_csv is None:
-        compiled_csv = params["lc_outdir"] + params["name"] + f"_{int(params['window'])}_lcdata.csv"
-        if not os.path.exists(compiled_csv):
-            print ("No LC data found, exiting")
-            return [],[],[],[],[]
-    Time = []
-    TS = []
-    Flux = []
-    Unc = []
-    #ul2 = []
-    f = open(compiled_csv)
-    for i in f.readlines():
-        if "TS" in i:
-            continue
-        sl = i.split(",")
-        Time.append(float(sl[0]))
-        TS.append(float(sl[2]))
-        Flux.append(float(sl[3]))
-        Unc.append(float(sl[4]))
-
-        #ul2.append(float(sl[5]))
-        
-
-    Time = np.array(Time)
-    TS = np.array(TS)
-    Unc = np.array(Unc)
-    Flux = np.array(Flux)
-    #ul2 = np.array(ul2)
-    ww = np.array([params["window"]/2.0] * len(Flux))
-    ii = np.where(Flux > 0)
-    if np.min(Flux) < 0:
-        print ("Warning: At least one Likelihood calculation Failed, F < 0")
-    return Time[ii] , TS[ii] , Unc[ii] , Flux[ii] , ww[ii]
-
-def read_results(fname):
-    
+    fname = params["result_log"]
     if not os.path.exists(fname):
         print ("No results found, exiting")
         return [],[],[],[],[],[]
+
+    ## Get desired start / stop times
+    if mode == "lc":
+        
+        starts, ends, fheaders = af.get_light_curve_bins(params)
+    
+    elif mode == "grid":
+        starts, ends, fheaders = af.get_grid_bins(params)
+        
+    elif mode == "bck":
+        starts, ends, fheaders = af.get_background_bins(params)
+        
     f = open(fname)
     
     TS = []
     Flux = []
     Unc = []
-    Time = []
     st = []
     et = []
-    
+    upper_lim = []
     for i in f.readlines():
         if "TS" in i:
             continue
         sl = i.split(",")
+        st = float(sl[4])
+        et = float(sl[5])
+        if st not in starts or et not in ends:
+            continue
+        ind = starts.index(st)
+        if ends[ind] != et:
+            continue
         
         Flux.append(float(sl[0]))
         Unc.append(float(sl[1]))
         TS.append(float(sl[2]))
-        Time.append(float(sl[3]))
+        upper_lim.append(float(sl[3]))
         st.append(float(sl[4]))
         et.append(float(sl[5]))
     
     TS = np.array(TS)
     Flux = np.array(Flux)
     Unc = np.array(Unc)
-    Time = np.array(Time)
+    upper_lim = np.array(upper_lim)
     st = np.array(st)
     et = np.array(et)
-    return TS , Flux , Unc , Time , st , et
+    return TS , Flux , Unc , upper_lim , st , et
 
 def TS_hist(params, compile_csv = None):
     
@@ -353,7 +273,7 @@ def TS_hist(params, compile_csv = None):
         print ("Error: No Background data found, exiting")
         return 0
     
-    TS , Unc , Flux , Time, st , et = read_results(back_file)
+    TS , Unc , Flux , upper_lim , st , et = read_results(back_file, mode = "bck")
     
     
     ncol = 1 ## Change to 2 for a two-column figure.
@@ -420,6 +340,12 @@ def TS_hist(params, compile_csv = None):
         rows.append([np.sqrt(x) , x ,len(TS) - Ntri, Ntri / len(TS)])
     print (tabulate(rows))
     
+    Times = (et + st) / 2.0
+    Time = []
+    for t in Times:
+        Time.append(af.met_to_tpeak(t , params))
+    Time = np.array(Time)
+    
     ## Plot a light curve out of the background data.
     plt.figure()
     plt.scatter(Time , Flux)
@@ -469,74 +395,7 @@ def TS_hist(params, compile_csv = None):
     plt.tight_layout()
     plt.show()
     
-def compile_data(params, output=None):
-    '''
-    Utility function to compile all of the multi-processing logs into 
-    a singular csv file.
-    
-    Parameters
-    __________
-    
-    params : dict : parameter dict from read_parameters
-    output : string : name of output csv file
-    
-    Returns
-    _______
-    None
-    
-    '''
-    if output is None:
-        output = params["lc_outdir"] + params["name"] + f"_{int(params['window'])}_lcdata.csv"
-    
-    
-    dir = params["lc_outdir"] 
-    Flux = []
-    Unc = []
-    Time = []
-    TS = []
-    METs = []
-    # // ULS = []
-    for i in os.listdir(dir):
-        fname = os.path.join(dir , i)
-        if ".csv" not in fname or "mp" not in fname or str(params["window"]) not in fname or str(params["lcstep"]) not in fname:
-            continue
-        elif "grid" in fname:
-            continue
-        f = open(fname)
-        for line in f.readlines():
-            split_line = line.split(",")
-            Flux.append(float(split_line[0]))
-            Unc.append(float(split_line[1]))
-            TS.append(float(split_line[2]))
-            MET = float(split_line[3])
-            #ul2 = float(split_line[4])
-            #ULS.append(ul2)
-            METs.append(MET)
-            tpeak = af.met_to_tpeak(MET , params)
-            Time.append(tpeak)
-            break
-        
-    METs = np.array(METs)
-    TS = np.array(TS)
-    Flux = np.array(Flux)
-    Unc = np.array(Unc)
-    Time = np.array(Time)
-    # // ULS = np.array(ULS)
-    
-    if len(METs) == 0:
-        print ("No LC Data Found, exiting now")
-        return 0
-    isort = np.argsort(Time)
-    out_file = open(output, "w")
-    
-    header = "Time since peak (days),Fermi MET (seconds),TS,Flux,Flux"
-    header += " Uncertainty\n"
-    out_file.write(header)
-    
-    for ind in isort:
-        csv_line = f"{Time[ind]},{METs[ind]},{TS[ind]},{Flux[ind]},{Unc[ind]}"#//,{ULS[ind]}"
-        out_file.write(csv_line + "\n")
-    out_file.close()
+
     
 def TS_Grid(params, return_TS = False, show = False, title = None):
     
@@ -547,11 +406,12 @@ def TS_Grid(params, return_TS = False, show = False, title = None):
     if not os.path.exists(params["grid_logfile"]):
         print ("No TS Grid results found, exiting")
         return 0
-    TS , Unc , Flux , Time, st , et = read_results(params["grid_logfile"])
+    
+    TS , Unc , Flux , upper_lim , Time, st , et = read_results(params, mode = "grid")
     
     start=  []
     end = []
-    for i in range(len(Time)):
+    for i in range(len(st)):
         start.append(af.met_to_tpeak(st[i] , params))
         end.append(af.met_to_tpeak(et[i] , params))
     
@@ -622,11 +482,10 @@ def TS_Grid(params, return_TS = False, show = False, title = None):
     print (np.max(np.array(Flux)[ii]))
     print (start[ii[0][0]],end[ii[0][0]])
     return max(TS), Time[TSi]
+
 if __name__ == "__main__":
     params = af.read_parameters(sys.argv[1])
     plot_TS_search(params)
-    compile_data(params)
-    compile_bck_data(params) 
     plot_light_curve(params)
     TS_hist(params)
     TS_Grid(params)
