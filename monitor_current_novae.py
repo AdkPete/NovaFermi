@@ -228,7 +228,7 @@ def reset_results(name):
     '''
     
     
-    
+    return 0 ## NO longer required. Kept temporarily for legacy reasons.
     dirname = os.path.join(os.environ['FERMI_MONITOR'], name)
     params= af.read_parameters(os.path.join(dirname, "parameters.yaml"))
     cwd = os.getcwd()
