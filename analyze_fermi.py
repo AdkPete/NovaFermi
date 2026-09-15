@@ -215,6 +215,7 @@ def read_spec_from_xml(xml_file, params):
             return spec_type , spat_type , spec_params, free_params
         
     return None , None , None, None
+
 def save_parameters(params, fname):
     '''
     Function to save analysis parameters and source model parameters.
@@ -242,7 +243,7 @@ def save_parameters(params, fname):
     save_params["spec_type"] = stype
     
     ## Now write the yaml file, with three sections: params, spec_params, free_params
-
+    
     with open(fname, 'w') as f:
         yaml.dump({"params": save_params, "spec_params": spec_params, "free_params": free_params}, f)
         
@@ -266,8 +267,10 @@ def confirm_parameters(params, yaml_fname):
     Function to confirm that the parameters in a previous run are consistent
     with the current run. If not, will raise an error.
     '''
-    
-    old_params, old_spec_params, old_free_params = load_used_parameters(fname)
+    if yaml_fname == "None":
+        print ("Warning, no used parameter file specified, skipping consistency checks")
+        return True
+    old_params, old_spec_params, old_free_params = load_used_parameters(yaml_fname)
     
     input_model = params["input_model"]
     stype, x, spec_params, free_params =   read_spec_from_xml(input_model, params)
@@ -358,7 +361,7 @@ def read_parameters(pfile):
             params["scfile"] = scfile
             
         for i in params.keys():
-            if "outdir" in i or "figdir" in i:
+            if "outdir" in i or "figdir" in i or 'logdir' in i:
                 if not os.path.exists(params[i]):
                     os.mkdir(params[i])
         cal_dir = params["cal_dir"]
@@ -414,6 +417,7 @@ def save_result(params, met_start, met_end, flux, flux_err, ts, upper_limit,
     
     fname = params["result_log"]
     
+    overwrite = False
     if not os.path.exists(fname):
         overwrite = False
     else:
@@ -422,8 +426,8 @@ def save_result(params, met_start, met_end, flux, flux_err, ts, upper_limit,
             if met_start == logs["met_start"][i] and met_end == logs["met_end"][i]:
                 overwrite = True
                 break
-            else:
-                overwrite = False
+
+    
     if not overwrite:
         if lock is not None:
             with lock:
@@ -486,9 +490,9 @@ def check_log(result_file):
     
     if not os.path.exists(result_file):
         f = open(result_file , "w")
-        f.write('Flux,Flux_Error,TS,upper_lim,met_start,met_end,used_param_file\n')
+        f.write('Flux,Flux_Error,TS,upper_lim,met_start,met_end,used_param_file,data_start,data_end\n')
         f.close()
-        return [] , [] , []
+    
     f = open(result_file , "r")
     status = {}
     keys = [] 
@@ -2191,6 +2195,7 @@ def run_analysis(params, log_notes = None):
         tmid = met_to_tpeak(mid_time , params)
 
         result_log = check_log(params["result_log"])
+
         for i in range(len(result_log["met_start"])):
             if start_time == result_log["met_start"][i] and end_time == result_log["met_end"][i]:
                 if result_log["TS"][i] > params["av_ts_lim"] or not params["up_lim_av"] or result_log["upper_limit"][i] > 0:
