@@ -1576,7 +1576,7 @@ def false_positive_rate(params, clobber):
     t = start + step_seconds / 2.0
     tpeak_start = met_to_tpeak(start, params)
 
-    log_starts, log_ends, log_files = check_status(params["result_log"])
+    result_log = check_log(params["result_log"])
     
     with mp.Manager() as manager:
         lock = manager.Lock()
@@ -1588,13 +1588,15 @@ def false_positive_rate(params, clobber):
             et = t + window_half_seconds
             
             skip = False
-            for k in range(len(log_starts)):
-                if st == log_starts[k] and et == log_ends[k]:
-                    confirm_parameters(params, log_files[k])
-                    print (f"Skipping {t} as it is already in the log file")
-                    t += step_seconds
-                    id += 1
-                    skip = True
+            for k in range(len(result_log["met_start"])):
+                if st == result_log["met_start"][k] and et == result_log["met_end"][k]:
+                    if et <= result_log["data_end"][k] and st >= result_log["data_start"][k]:
+                        
+                        confirm_parameters(params, result_log["log_files"][k])
+                        print (f"Skipping {t} as it is already in the log file")
+                        t += step_seconds
+                        id += 1
+                        skip = True
             if skip:
                 continue
             
@@ -2124,7 +2126,7 @@ def TS_Grid(params , starts , ends, up_lims = False, log_notes = None):
     grid_dir = params["grid_outdir"]
     
     params['up_lim_lc'] = up_lims
-    status_log, log_starts, log_ends = check_status(params["result_log"])
+    result_log = check_log(params["result_log"])
     
     with mp.Manager() as manager:
         lock = manager.Lock()
@@ -2142,15 +2144,16 @@ def TS_Grid(params , starts , ends, up_lims = False, log_notes = None):
                 et = tpeak_to_met(end, params)
                 skip = False
                 
-                for i in range(len(log_starts)):
-                    if st == log_starts[i] and et == log_ends[i]:
-                        
-                        print (f"Skipping {start} to {end} as it is already in the log file")
-                        skip = True
-                        confirm_parameters(params , log_starts[i])
-                        break
-                if skip:
-                    continue
+                for i in range(len(result_log["met_start"])):
+                    if st == result_log["met_start"][i] and et == result_log["met_end"][i]:
+                        if et <= result_log["data_end"][i] and st >= result_log["data_start"][i]:
+                            if not up_lims or result_log["upper_limit"][i] > 0 or result_log["TS"][i] > params["ts_lim"]:
+                                print (f"Skipping {start} to {end} as it is already in the log file")
+                                skip = True
+                                confirm_parameters(params , log_starts[i])
+                                break
+                        if skip:
+                            continue
                 
                 param_row = [params, st, et, False, fheader, params["result_log"], lock, grid_dir]
                 if log_notes is not None:
@@ -2187,15 +2190,17 @@ def run_analysis(params, log_notes = None):
         mid_time = (start_time + end_time) / 2.0
         tmid = met_to_tpeak(mid_time , params)
 
-        log_starts, log_ends, log_files = check_status(params["result_log"])
-        for i in range(len(log_starts)):
-            if start_time == log_starts[i] and end_time == log_ends[i]:
-                match = confirm_parameters(params , log_files[i])
-                
-                print (f"Skipping avgerage run as it is already in the log file")
-                params["gen_av"] = False
-                run_analysis(params) ## Go do everything else
-                return 0
+        result_log = check_log(params["result_log"])
+        for i in range(len(result_log["met_start"])):
+            if start_time == result_log["met_start"][i] and end_time == result_log["met_end"][i]:
+                if result_log["TS"][i] > params["av_ts_lim"] or not params["up_lim_av"] or result_log["upper_limit"][i] > 0:
+                    if start_time <= result_log["data_start"][i] and end_time >= result_log["data_end"][i]:
+                        match = confirm_parameters(params , result_log["log_files"][i])
+                        
+                        print (f"Skipping avgerage run as it is already in the log file")
+                        params["gen_av"] = False
+                        run_analysis(params) ## Go do everything else
+                        return 0
         
         print ("Beginning Likelihood Calculations")
         
