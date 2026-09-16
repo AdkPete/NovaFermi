@@ -32,6 +32,8 @@ test_V906_Car/prune_files/
 test_V339_Del/prune_files/
 test_V339_Del/*.xml
 test_V339_Del/*.log
+test_V906_Car/Logs
+test_V906_Car/bck_results/
 mkdocs.sh
 docs/*
 .DS_Store
