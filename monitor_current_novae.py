@@ -73,7 +73,7 @@ def get_current_novae(fname = "current_novae.csv"):
         if i[0] == "#":
             continue
         name.append(i.strip())
-         
+    f.close()
     return name
 
 def get_current_week_number(time=datetime.datetime.now(tz=datetime.timezone.utc)):
@@ -386,7 +386,7 @@ def main_loop(table_only=False, reset=True, name = None):
             if reset:
                 reset_results(names[i])
             cleanup_monitoring_data(names[i])
-            af.run_analysis(params, [f"{last_met}"])
+            af.run_analysis(params)
             cleanup_monitoring_data(names[i])
             #mark_result_as_incomplete(names[i])
             

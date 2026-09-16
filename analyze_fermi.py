@@ -1715,7 +1715,7 @@ def false_positive_rate(params, clobber):
             param_row = [params, st, et, clobber, fheader, params["result_log"], lock, lcdir]
             param_row.append( params["cleanlc"])
             param_row.append( params["cleanlc"])
-            center_t = met_to_tpeak(t , params)
+            center_t = met_to_tpeak(0.5 * (et + st), params)
             log_file = param_row[7] + param_row[5] + param_row[4] + f"_{int(center_t)}.csv"
             if not os.path.exists(log_file) or clobber:
                 

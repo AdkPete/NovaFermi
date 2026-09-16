@@ -20,11 +20,16 @@ def check_all():
                 os.chdir(pwd)
                 continue
             params = read_parameters(paramfile)
+            if not os.path.exists("likelihood_results.csv"):
+                print(f"likelihood_results.csv not found in {i}")
+                os.chdir(pwd)
+                continue
+            '''
             if not os.path.exists(os.path.join(params["grid_outdir"], "grid_results.csv")):
                 print(f"grid_results.csv not found in {i}")
                 os.chdir(pwd)
                 continue
-            
+            '''
             
             
             max_TS, center = TS_Grid(params, return_TS = True, show = True, title = i)

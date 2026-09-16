@@ -405,6 +405,13 @@ def TS_Grid(params, return_TS = False, show = False, title = None):
 
     
     TS  , Flux , Unc, upper_lim , st , et = read_results(params, mode = "grid")
+    if len(TS) == 0:
+        print ("No grid data found, exiting")
+        return 0, 0
+    
+    Tsi = np.where(TS == max(TS))[0][0]
+    maxTS = TS[Tsi]
+    center = af.met_to_tpeak(0.5 * (et[Tsi] + st[Tsi]), params)
     for i in range(len(st)):
         st[i] = af.met_to_tpeak(st[i], params)
         et[i] = af.met_to_tpeak(et[i], params)
@@ -421,7 +428,8 @@ def TS_Grid(params, return_TS = False, show = False, title = None):
 
     if len(np.unique(et_vals)) < 2 or len(np.unique(st_vals)) < 2:
         print("Not enough unique start/end times to create a grid plot.")
-        return
+        
+        return maxTS, center
     
     # Cell edges (so cells are centered on data values)
     dx = np.min(np.diff(et_vals))
@@ -490,7 +498,7 @@ def TS_Grid(params, return_TS = False, show = False, title = None):
         plt.show()
         
     if return_TS:
-        return max(TS), st[max_st_idx]
+        return maxTS, center
 if __name__ == "__main__":
     params = af.read_parameters(sys.argv[1])
     plot_TS_search(params)
