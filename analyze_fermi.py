@@ -515,7 +515,77 @@ def check_log(result_file):
                 status[keys[k]].append(i.split(",")[k].strip())
     return status
 
+def query_log(result_log, start, end, params):
+    '''
+    Function to look at our result log and determine if a suitable measurement
+    already exists in the log. Will automatically check if requested window
+    fell within data coverage window.
     
+    Some Assumptions:
+    1. We assume that only one entry in the csv will match the requested 
+    start/ end time.
+    2. Upper limits in file are assigned -1 when not computed
+    
+    Parameters
+    __________
+    result_log : dictionary : result of check_log function
+    start : float : MET start time of interest
+    end : float : MET end time of interest
+    params : dictiontary : standard parameter dictionary.
+    
+    Returns
+    _______
+    found : boolean : True if a suitable measurement exists in the log
+    '''
+
+    up_lim = params["upper_limit"]
+    ts_lim = params["ts_lim"]
+    found = False
+    
+    ## A couple of general checks outside main loop.
+    if start not in result_log["met_start"] or end not in result_log["met_end"]:
+        return False ## Definitely have not covered the time window if True.
+    elif max(result_log["data_end"]) < end:
+        return False
+    
+    for i in range(len(result_log["met_start"])):
+        ## Establish skip conditions, one at a time. All must be true to skip.
+        ## First, does the start/end time match
+
+        ca = start == result_log["met_start"][i]
+        cb = end == result_log["met_end"][i]
+        
+        if not ca or not cb:
+            continue
+
+        ## If match is found, check that it satisfies data completeness
+
+        cc = end <= result_log["data_end"][i]
+        cd = start >= result_log["data_start"][i]
+        
+        if not cc or not cd:
+            return False ## Need to regen with new data
+        
+
+        ## Confirm parameter match:
+        param_match = confirm_parameters(params, result_log["used_param_file"][i])
+        if not param_match:
+            raise ValueError
+        
+        
+        
+        ## If we're still here, check if upper limit conditions are satisfied
+        TS = result_log["TS"][i]
+        ce = result_log["upper_lim"][i] > 0
+        cf = TS >= ts_lim
+        
+        if ce or cf or not up_lim:
+            return True ##Upper lim exists, or is not required
+        
+        ## Need to generate upper limit
+        return False
+
+
 def print_params(params):
     
     '''
@@ -1300,7 +1370,6 @@ def likelihood_wrapper(run_pars):
         log : filename to save data to
         lock : lock object : Lock used to prevent file conflicts
         outdir : string : Location to store all produced files
-        log_notes: Optional List : List of extra info to write into log file
         
     Returns
     ________
@@ -1309,10 +1378,6 @@ def likelihood_wrapper(run_pars):
 
     if len(run_pars) < 8:
         raise ValueError("run_pars must contain at least 8 elements")
-    elif len(run_pars) == 8:
-        log_notes = []
-    else:
-        log_notes = run_pars[8]
         
     center_t = (run_pars[1] + run_pars[2]) / 2.0
     center_t = met_to_tpeak(center_t, run_pars[0])
@@ -1352,7 +1417,7 @@ def likelihood_wrapper(run_pars):
 
     
     up_lim = -1
-    if ts < run_pars[0]["ts_lim"] and run_pars[0]["up_lim_lc"]:
+    if ts < run_pars[0]["ts_lim"] and run_pars[0]["upper_limit"]:
         try:
             up_lim , Flow , Fhigh , DeltaLogL = compute_upper_lim(run_pars[0] , run_pars[4], outdir = run_pars[7])
             
@@ -1379,6 +1444,7 @@ def likelihood_wrapper(run_pars):
     
     
     used_pfile = os.path.join(run_pars[0]["logdir"], f"{run_pars[1]}_{run_pars[2]}.yaml")
+    save_parameters(run_pars[0], used_pfile)
     save_result(run_pars[0], run_pars[1], run_pars[2], F, unc, ts, up_lim,
                  used_pfile, lock=run_pars[6])
         
@@ -1406,6 +1472,10 @@ def light_curve_singleproc(params, clobber, log = "mp_log"):
     '''
     
 
+    
+    if params["up_lim_lc"]:
+        params["upper_limit"] = True
+        
     ## Get start and end times for LC.
     start = tpeak_to_met(params["lc_start"], params)
     end = tpeak_to_met(params["lc_end"], params)
@@ -1523,6 +1593,9 @@ def light_curve_multiproc(params , clobber):
 
     lcdir = params["lc_outdir"]
 
+    if params["up_lim_lc"]:
+        params["upper_limit"] = True
+    
     ## Start by setting up our parameter array
     param_array = []
     
@@ -1538,25 +1611,11 @@ def light_curve_multiproc(params , clobber):
             st = start_mets[met_i]
             et = end_mets[met_i]
             fheader = fheaders[met_i]
-            t = (et + st) / 2.0
-            t_day = met_to_tpeak(t , params)
-            skip = False
-            for i in range(len(result_log["met_start"])):
-                ## First, check if this time window exists already
-                if st == result_log["met_start"][i] and et == result_log["met_end"][i]:
-                    ## Next, check if this window was run with a complete data set. If not, we will rerun it.
-                    if et <= result_log["data_end"][i] and st >= result_log["data_start"][i]:
-                        ## Finally, check if upper limit was computed if need be, and if not then we will rerun it.
-                        if result_log["TS"][i] > params["ts_lim"] or not params["up_lim_lc"] or result_log["upper_limit"][i] > 0:
-                                
-                            print (f"Skipping {t_day} as it is already in the log file")
-                            
-                            
-                            skip = True
-                            confirm_parameters(params, result_log["used_param_file"][i])
-                    
-                if skip:
-                    continue
+            
+            skip = query_log(result_log, st, et, params)
+            
+            if skip: ## Suitable data already exists in the log file, we will skip this time window.
+                continue
             
             
             param_row = [params, st, et, clobber, fheader, params['result_log'], lock, lcdir]
@@ -1606,6 +1665,7 @@ def get_bck_bins(params):
         met_ends.append(et)
         t += step_seconds
     return met_starts, met_ends, fheaders
+
 def false_positive_rate(params, clobber):
     '''
     Function to compute the false positive rate for a given nova
@@ -1626,7 +1686,8 @@ def false_positive_rate(params, clobber):
     None
     '''
     
-
+    params["upper_limit"] = params['bck_up_lim']
+    
     lcdir = params["bck_outdir"]
 
     param_array = []
@@ -1646,18 +1707,8 @@ def false_positive_rate(params, clobber):
             st = met_starts[met_i]
             et = met_ends[met_i]
             
-            t = (et + st) / 2.0
-            t_day = met_to_tpeak(t , params)
-            skip = False
-            for k in range(len(result_log["met_start"])):
-                if st == result_log["met_start"][k] and et == result_log["met_end"][k]:
-                    if et <= result_log["data_end"][k] and st >= result_log["data_start"][k]:
-                        
-                        confirm_parameters(params, result_log["used_param_file"][k])
-                        print (f"Skipping {t_day} as it is already in the log file")
-                       
-                        id += 1
-                        skip = True
+            ## Skip if suitable measurement exists:
+            skip = query_log(result_log, st, et, params)
             if skip:
                 continue
             
@@ -2210,12 +2261,12 @@ def get_grid_bins(params):
             
     return start_mets, end_mets, fheaders
 
-def TS_Grid(params , starts , ends, up_lims = False, log_notes = None):
+def TS_Grid(params):
     ## Start by setting up our parameter array
     param_array = []
     grid_dir = params["grid_outdir"]
     
-    params['up_lim_lc'] = up_lims
+    params['upper_limit'] = params['grid_upper_lims']
     result_log = check_log(params["result_log"])
     
     with mp.Manager() as manager:
@@ -2225,27 +2276,17 @@ def TS_Grid(params , starts , ends, up_lims = False, log_notes = None):
         start_mets, end_mets, fheaders = get_grid_bins(params)
         
         for met_i in range(len(start_mets)):
-            skip = False
+            
             st = start_mets[met_i]
             et = end_mets[met_i]
             fheader = fheaders[met_i] 
             start = round(met_to_tpeak(st, params),1)
             end = round(met_to_tpeak(et, params),1)
             
-            for i in range(len(result_log["met_start"])):
-                if st == result_log["met_start"][i] and et == result_log["met_end"][i]:
-                    if et <= result_log["data_end"][i] and st >= result_log["data_start"][i]:
-                        if not up_lims or result_log["upper_limit"][i] > 0 or result_log["TS"][i] > params["ts_lim"]:
-                            print (f"Skipping {start} to {end} as it is already in the log file")
-                            skip = True
-                            confirm_parameters(params , result_log["used_param_file"][i])
-                            break
+            skip = query_log(result_log, st, et, params)
             if skip:
                 continue
-            
             param_row = [params, st, et, False, fheader, params["result_log"], lock, grid_dir]
-            if log_notes is not None:
-                param_row.append(log_notes)
     
             param_array.append(param_row)
         
@@ -2266,7 +2307,7 @@ def TS_Grid(params , starts , ends, up_lims = False, log_notes = None):
             print (f"Completed {Ntrial} trials in {(time.time() - start)/60} minutes")
             print (f"Average time per trial is {(time.time() - start)/Ntrial} seconds")
 
-def run_analysis(params, log_notes = None):
+def run_analysis(params):
     
     check_data_valid_times()
     ##Average Run First
@@ -2280,18 +2321,17 @@ def run_analysis(params, log_notes = None):
         tmid = met_to_tpeak(mid_time , params)
 
         result_log = check_log(params["result_log"])
-
-        for i in range(len(result_log["met_start"])):
-            if start_time == result_log["met_start"][i] and end_time == result_log["met_end"][i]:
-                if result_log["TS"][i] > params["av_ts_lim"] or not params["up_lim_av"] or result_log["upper_limit"][i] > 0:
-                    if start_time >= result_log["data_start"][i] and end_time <= result_log["data_end"][i]:
-                        match = confirm_parameters(params , result_log["used_param_file"][i])
-                        
-                        print (f"Skipping avgerage run as it is already in the log file")
-                        params["gen_av"] = False
-                        run_analysis(params) ## Go do everything else
-                        return 0
-        
+        params["upper_limit"] = params["up_lim_av"]
+        original_ts_lim = params["ts_lim"]
+        params["ts_lim"] = params["av_ts_lim"]
+        skip = query_log(result_log, start_time, end_time, params)
+        params["ts_lim"] = original_ts_lim
+        if skip:
+            print ("Average run already completed, skipping")
+            params["gen_av"] = False
+            ## Go do all other analysis, and exit.
+            run_analysis(params)
+            return 0
         print ("Beginning Likelihood Calculations")
         
         start = time.time()
@@ -2341,7 +2381,7 @@ def run_analysis(params, log_notes = None):
         light_curve_multiproc(params , params["clobber"])
         end = time.time()
         
-        print (f"Total light curve runtime was {(end-start)/60} minues")
+        print (f"Total light curve runtime was {(end-start)/60} minutes")
         
     if "gen_bck" in params.keys() and params["gen_bck"]:
         
@@ -2357,7 +2397,7 @@ def run_analysis(params, log_notes = None):
             ends = [params["min_end"]]
         
         
-        TS_Grid(params, starts , ends, up_lims =params["grid_upper_lims"], log_notes = log_notes)
+        TS_Grid(params)
         
 
 if __name__ == "__main__":

@@ -419,6 +419,10 @@ def TS_Grid(params, return_TS = False, show = False, title = None):
     st_idx = np.searchsorted(st_vals, st)
     TS_grid[st_idx, et_idx] = TS
 
+    if len(np.unique(et_vals)) < 2 or len(np.unique(st_vals)) < 2:
+        print("Not enough unique start/end times to create a grid plot.")
+        return
+    
     # Cell edges (so cells are centered on data values)
     dx = np.min(np.diff(et_vals))
     dy = np.min(np.diff(st_vals))
