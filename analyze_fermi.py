@@ -22,7 +22,6 @@ import time
 import yaml
 import gc
 import scipy.optimize as opt
-import gen_alg as ga
 import contextlib
 import traceback
 
@@ -2192,45 +2191,6 @@ def generate_residuals(params, clobber, fheader, lock=None,outdir = "./"):
     plt.savefig(f"{outdir}Residual_{fheader}.pdf")
     plt.close()
     
-def find_max_TS(params):
-    '''
-    Function to determine the ideal window to get the maximum test
-    statistic value. Intended to search for evidence of a significant
-    detection.
-    
-    Parameters
-    ___________
-    params : dict : parameter dict from read_parameters
-    
-    Returns
-    _______
-    None
-    '''
-    
-
-    logfile = "all_fits.csv"
-    f = open(logfile , "w")
-    f.write("#tstart,windowsize,TS\n")
-    f.close()
-    x0 = [0, 15]
-    
-    start_bounds = [params["min_start"] , params["max_start"] ]
-    window_bounds = [ params["min_window"] , params["max_window"] ]
-    boundaries = [ start_bounds , window_bounds  ] 
-    '''
-    result = opt.minimize(min_ts , x0)
-    optf = open("optimize_res.txt" , "w")
-    optf.write(str(result.x[0]) + "," + str(result.x[1]) + "," + str(result.fun))
-    optf.write("," + str(result.success))
-    optf.close()
-    print (result)
-    print (result.x)
-    '''
-    
-    Bx , Bf , neval = ga.genetic_algorithm(opt_func , boundaries, popsize = params["popsize"],
-                Niter = params["Niter"], nproc = params["nproc"], mutation_rate=params["mutation"])
-    print (Bx , Bf)
-    return Bx , Bf
 
 def get_grid_bins(params):
     
@@ -2366,10 +2326,6 @@ def run_analysis(params):
     ## Compute TS Maps
     if params["gen_ts"]:
         TS_Map(params, params["av_outdir"] + "fit_model.xml", False)
-        
-    ## Find Max TS
-    if params["find_mts"]:
-        mx = find_max_TS(params)
         
     
         

@@ -72,8 +72,8 @@ params:
   popsize: 20 # Will start with this many random solutions.
   Niter: 10 # Number of iterations; each iteration has popsize / 2 trials
   mutation: 0.05 # Mutation rate for optimizer, probably keep low.
-  min_start: -5 # Earliest start time to search
-  max_start: 10 # Latest start time to search
+  min_start_search: -5 # Earliest start time to search
+  max_start_sear: 10 # Latest start time to search
   min_window: 0.1 # Minimum window size allowed
   max_window: 20 # Maximum window size allowed
   tsm_outdir: ts_search_dir/ # Location to save data.
