@@ -7,9 +7,9 @@ from tabulate import tabulate
 def check_all():
     
     result_dir = os.environ['FERMI_MONITOR']
-
+    nova_list = get_current_novae()
     rows = [ ]
-    for i in os.listdir(result_dir):
+    for i in nova_list:
         ## check if is a directory
         if os.path.isdir(os.path.join(result_dir, i)):
             pwd = os.getcwd()
@@ -24,12 +24,6 @@ def check_all():
                 print(f"likelihood_results.csv not found in {i}")
                 os.chdir(pwd)
                 continue
-            '''
-            if not os.path.exists(os.path.join(params["grid_outdir"], "grid_results.csv")):
-                print(f"grid_results.csv not found in {i}")
-                os.chdir(pwd)
-                continue
-            '''
             
             
             max_TS, center = TS_Grid(params, return_TS = True, show = True, title = i)
@@ -38,7 +32,21 @@ def check_all():
             rows.append([i, max_TS])
     print (tabulate(rows, headers = ["Nova", "Max TS"], tablefmt = "fancy_grid"))
     
+def get_current_novae(fname = "current_novae.csv"):
+    '''
+    Get the current list of novae from the Fermi website.
+    '''
+    f = open(fname, 'r')
+    name = []
+    for i in f.readlines():
+        if i[0] == "#":
+            continue
+        name.append(i.strip())
+    f.close()
+    return name
+
 def monitor_nova(name):
+    
     result_dir = os.environ['FERMI_MONITOR']
     pwd = os.getcwd()
     os.chdir(os.path.join(result_dir, name))
