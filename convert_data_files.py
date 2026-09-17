@@ -8,7 +8,7 @@ params = af.read_parameters(sys.argv[1])
 fname = params["grid_outdir"] + "/" + "grid_results.csv"
 data_start = af.tpeak_to_met(-6 * 30 , params)
 
-new_file = ""
+new_file = "Flux,Flux_Error,TS,upper_lim,met_start,met_end,used_param_file,data_start,data_end\n"
 new_fname = params["result_log"]
 
 f = open(fname, 'r')
@@ -18,6 +18,9 @@ for i in f.readlines():
         header = False
         continue
     sl = i.strip().split(",")
+    if len(sl) < 7:
+        print ("Error: line has too few columns: " + i)
+        continue
     new_file += sl[0] + "," + sl[1] + "," + sl[2] + "," + "-1" + "," + sl[4]
     new_file += "," + sl[5] + "," + "None" + "," + str(data_start) + ","
     new_file += sl[6] + "\n"
