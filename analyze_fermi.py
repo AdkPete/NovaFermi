@@ -196,8 +196,10 @@ def read_spec_from_xml(xml_file, params):
     Function to read out spectral parameters for our nova from the 
     model xml file. Returns a dictionary with the parameters.
     '''
-    
-    tree = ET.parse(xml_file)
+    try:
+        tree = ET.parse(xml_file)
+    except:
+        breakpoint()
     root = tree.getroot()
     
     for source in root:
@@ -275,6 +277,7 @@ def confirm_parameters(params, yaml_fname):
     old_params, old_spec_params, old_free_params = load_used_parameters(yaml_fname)
     
     input_model = params["input_model"]
+
     stype, x, spec_params, free_params =   read_spec_from_xml(input_model, params)
     params["spec_type"] = stype
     

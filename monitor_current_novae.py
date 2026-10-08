@@ -112,6 +112,7 @@ def update_weekly_data():
         url = down_url + f'lat_photon_weekly_w{week}_p305_v001.fits'
         command = f'wget -m -P . -nH --cut-dirs=4 -np -e robots=off {url}'
         fname = f'weekly/photon/lat_photon_weekly_w{week}_p305_v001.fits'
+        print(f"Downloading {url}")
         output = subprocess.run(command, shell=True)
         
         if os.path.exists(fname):
