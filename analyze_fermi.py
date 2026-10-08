@@ -2224,6 +2224,72 @@ def get_grid_bins(params):
             
     return start_mets, end_mets, fheaders
 
+def get_monitoring_bins(params, min_step = 0.25):
+    '''
+    Function to get adaptive bins for a monitoring grid search.
+    Only really intended to be used with the monitoring code; though no 
+    reason for why you coundn't use it for other things.
+    '''
+        
+    
+    start_mets = []
+    end_mets = []
+    starts = np.arange(params["min_start"] , params["max_start"] , min_step)
+    ends = np.arange(params["min_end"] , params["max_end"] , min_step)
+    if params["min_start"] == params["max_start"]:
+        starts = [params["min_start"]]
+    if params["min_end"] == params["max_end"]:
+        ends = [params["min_end"]]
+    
+
+    ## Now comes the adaptive part. For the first +/- 3 days, we retain the 
+    # minimum step size. Up to +/- 7 days, the min step size gets doubled.
+    # THis is maintained up to +/- 14 days, where the step size is doubled again.
+    # After +/- 21 days, the step size doubles again.
+    # After 35 days, we double one last time/.
+
+    def check_time(t):
+        if abs(t) < 3.0:
+            return True
+        elif abs(t) < 7.0:
+            if abs(t) % (min_step * 2) == 0:
+                return True
+            else:
+                return False
+        elif abs(t) < 14.0:
+            if abs(t) % (min_step * 4) == 0:
+                return True
+            else:
+                return False
+        elif abs(t) < 21.0:
+            if abs(t) % (min_step * 8) == 0:
+                return True
+            else:
+                return False
+        elif abs(t) < 35.0:
+            if abs(t) % (min_step * 16) == 0:
+                return True
+            else:
+                return False
+        
+    fheaders = []
+    for start in starts:
+        for end in ends:
+            
+            if end <= start:
+                continue
+            elif not check_time(start) or not check_time(end):
+                continue
+            
+            fheader = f"_grid_{start}_{end}"
+            st = tpeak_to_met(start, params)
+            et = tpeak_to_met(end, params)
+            fheaders.append(fheader)
+            start_mets.append(st)
+            end_mets.append(et)
+            
+    return start_mets, end_mets, fheaders
+    
 def TS_Grid(params):
     ## Start by setting up our parameter array
     param_array = []
@@ -2235,8 +2301,10 @@ def TS_Grid(params):
     with mp.Manager() as manager:
         lock = manager.Lock()
         id = 0
-        
-        start_mets, end_mets, fheaders = get_grid_bins(params)
+        if params["monitoring"]:
+            start_mets, end_mets, fheaders = get_monitoring_bins(params)
+        else:
+            start_mets, end_mets, fheaders = get_grid_bins(params)
         
         for met_i in range(len(start_mets)):
             

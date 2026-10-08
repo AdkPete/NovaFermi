@@ -211,7 +211,10 @@ def read_results(params, mode):
         starts, ends, fheaders = af.get_light_curve_bins(params)
     
     elif mode == "grid":
-        starts, ends, fheaders = af.get_grid_bins(params)
+        if not params["monitoring"]:
+            starts, ends, fheaders = af.get_grid_bins(params)
+        else:
+            starts, ends, fheaders = af.get_monitoring_bins(params)
         
     elif mode == "bck":
         starts, ends, fheaders = af.get_bck_bins(params)
