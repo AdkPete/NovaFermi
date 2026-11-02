@@ -985,7 +985,6 @@ def check_data_valid_times():
     
     return min(start_times) , max(end_times)
 
-
 def fit_model(params, fheader, get_like, inmod = "No" , opt = 'NewMINUIT', silent=False, lock=None, outdir = "./"):
     '''
     Function to run the model fitting steps
@@ -1073,7 +1072,7 @@ def fit_model(params, fheader, get_like, inmod = "No" , opt = 'NewMINUIT', silen
     Nova_flux = like.flux(params["name"] , emin = params["emin"], emax=params["emax"])
     Nova_flux_err = like.fluxError(params["name"], emin=params["emin"], emax=params["emax"])
     
-    TS = like.Ts(f'{params["name"]}')
+    TS = like.Ts(f'{params["name"]}', reoptimize=True)
     
     
     return Nova_flux , Nova_flux_err , TS
@@ -2248,26 +2247,34 @@ def get_monitoring_bins(params, min_step = 0.25):
     # After +/- 21 days, the step size doubles again.
     # After 35 days, we double one last time/.
 
-    def check_time(t):
-        if abs(t) < 3.0:
+    def check_time(tstart,tend):
+        tstart = abs(tstart)
+        tend = abs(tend)
+        maxt = max(tstart,tend)
+        if maxt < 3.0:
             return True
-        elif abs(t) < 7.0:
-            if abs(t) % (min_step * 2) == 0:
+        elif maxt < 7.0:
+            if abs(tstart) % (min_step * 2) == 0 and abs(tend) % (min_step * 2) == 0:
                 return True
             else:
                 return False
-        elif abs(t) < 14.0:
-            if abs(t) % (min_step * 4) == 0:
+        elif maxt < 14.0:
+            if abs(tstart) % (min_step * 4) == 0 and abs(tend) % (min_step * 4) == 0:
                 return True
             else:
                 return False
-        elif abs(t) < 21.0:
-            if abs(t) % (min_step * 8) == 0:
+        elif maxt < 21.0:
+            if abs(tstart) % (min_step * 8) == 0 and abs(tend) % (min_step * 8) == 0:
                 return True
             else:
                 return False
-        elif abs(t) < 35.0:
-            if abs(t) % (min_step * 16) == 0:
+        elif maxt < 35.0:
+            if abs(tstart) % (min_step * 16) == 0 and abs(tend) % (min_step * 16) == 0:
+                return True
+            else:
+                return False
+        else:
+            if abs(tstart) % (min_step * 32) == 0 and abs(tend) % (min_step * 32) == 0:
                 return True
             else:
                 return False
@@ -2278,7 +2285,7 @@ def get_monitoring_bins(params, min_step = 0.25):
             
             if end <= start:
                 continue
-            elif not check_time(start) or not check_time(end):
+            elif not check_time(start,end):
                 continue
             
             fheader = f"_grid_{start}_{end}"
