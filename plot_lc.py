@@ -9,6 +9,9 @@ import analyze_fermi as af
 import numpy as np
 from tabulate import tabulate
 import scipy.stats as stats
+from scipy.interpolate import griddata
+
+import matplotlib.tri as mtri
 
 def get_size(width , fraction = 1.0):
     
@@ -194,10 +197,10 @@ def plot_light_curve(params, display=False, compile_csv = None):
 def read_results(params, mode):
     '''
     Function to read in required data.
-    mode can either be lc, grid, or bck
+    mode can either be lc, grid, bck, or all
     '''
-    if mode != "lc" and mode != "grid" and mode != "bck":
-        print ("Error: mode must be either lc, grid, or bck")
+    if mode != "lc" and mode != "grid" and mode != "bck" and mode != "all":
+        print ("Error: mode must be either lc, grid, bck, or all")
         raise ValueError
     
     fname = params["result_log"]
@@ -219,6 +222,9 @@ def read_results(params, mode):
     elif mode == "bck":
         starts, ends, fheaders = af.get_bck_bins(params)
         
+    elif mode == "all":
+        starts = [1]
+
     f = open(fname)
     
     TS = []
@@ -233,10 +239,14 @@ def read_results(params, mode):
         sl = i.split(",")
         stt = float(sl[4])
         ett = float(sl[5])
-        if stt not in starts or ett not in ends:
+        
+        if mode != "all" and (stt not in starts or ett not in ends):
             continue
         skip = True
         for k in range(len(starts)):
+            if mode == "all":
+                skip = False
+                break
             if starts[k] == stt and ends[k] == ett:
                 skip = False
                 break
@@ -309,6 +319,7 @@ def TS_hist(params, compile_csv = None):
     plt.tight_layout()
     plt.gca().yaxis.set_ticks_position('both')
     plt.gca().xaxis.set_ticks_position('both')
+    
     plt.savefig(params["figdir"] + "TS_Hist_wpdf.pdf")
     plt.close()
     
@@ -399,15 +410,18 @@ def TS_hist(params, compile_csv = None):
     
 
     
-def TS_Grid(params, return_TS = False, show = False, title = None):
+def TS_Grid(params, return_TS = False, show = False, title = None, useall=True):
     
     '''
     Plots the results from a TS Grid search
     '''
     from matplotlib.patches import Rectangle
 
-    
-    TS  , Flux , Unc, upper_lim , st , et = read_results(params, mode = "grid")
+    if useall:
+        mode = "all"
+    else:
+        mode = "grid"
+    TS  , Flux , Unc, upper_lim , st , et = read_results(params, mode = mode)
     if len(TS) == 0:
         print ("No grid data found, exiting")
         return 0, 0
@@ -415,91 +429,101 @@ def TS_Grid(params, return_TS = False, show = False, title = None):
     Tsi = np.where(TS == max(TS))[0][0]
     maxTS = TS[Tsi]
     center = af.met_to_tpeak(0.5 * (et[Tsi] + st[Tsi]), params)
+    
     for i in range(len(st)):
         st[i] = af.met_to_tpeak(st[i], params)
         et[i] = af.met_to_tpeak(et[i], params)
     
-    # et, st, TS are assumed to be 1D arrays sampled on a regular grid
-    et_vals = np.unique(et)
-    st_vals = np.unique(st)
+    # et, st, TS are assumed to be 1D arrays of end times, start times, and TS
+    # values for each grid point.
 
-    # Build 2D grid of TS values matching (st, et) order
-    TS_grid = np.full((len(st_vals), len(et_vals)), np.nan)
-    et_idx = np.searchsorted(et_vals, et)
-    st_idx = np.searchsorted(st_vals, st)
-    TS_grid[st_idx, et_idx] = TS
+    #et_vals = np.unique(et)
+    #st_vals = np.unique(st)
+    '''
+    tri = mtri.Triangulation(et, st)
+    xt, yt = et[tri.triangles], st[tri.triangles]
+    edge = np.maximum.reduce([
+        np.hypot(xt[:, 0] - xt[:, 1], yt[:, 0] - yt[:, 1]),
+        np.hypot(xt[:, 1] - xt[:, 2], yt[:, 1] - yt[:, 2]),
+        np.hypot(xt[:, 2] - xt[:, 0], yt[:, 2] - yt[:, 0]),
+    ])
+    tri.set_mask(edge > 3 * np.median(edge))   # tune the factor
 
-    if len(np.unique(et_vals)) < 2 or len(np.unique(st_vals)) < 2:
-        print("Not enough unique start/end times to create a grid plot.")
-        
-        return maxTS, center
+    fig, ax = plt.subplots()
+    pc = ax.tripcolor(tri, TS, shading="gouraud", cmap="viridis")  # or "flat"
+    fig.colorbar(pc, label="TS")
+    ax.set_xlabel("Window end time")
+    ax.set_ylabel("Window start time")
+    if show:
+        plt.show()
+    else:
+        plt.close()
     
-    # Cell edges (so cells are centered on data values)
-    dx = np.min(np.diff(et_vals))
-    dy = np.min(np.diff(st_vals))
-    et_edges = np.concatenate([et_vals - dx/2, [et_vals[-1] + dx/2]])
-    st_edges = np.concatenate([st_vals - dy/2, [st_vals[-1] + dy/2]])
+    '''
+    
 
+    grid_res = max(list(et) + list(st)) - min(list(et) + list(st))
+    grid_res = int(grid_res * 5)
+    xi = np.linspace(et.min(), et.max(), grid_res)
+    yi = np.linspace(st.min(), st.max(), grid_res)
+    XI, YI = np.meshgrid(xi, yi)
+    ZI = griddata((et, st), TS, (XI, YI), method="linear")   # NaN outside the data's hull
+
+    ## Set anything where et >= st to NaN
+    ZI[YI >= XI] = np.nan
+    
     fig, ax = plt.subplots()
-    mesh = ax.pcolormesh(et_edges, st_edges, TS_grid, shading='flat')
-    ax.set_xlabel("End Time (days since peak)")
-    ax.set_ylabel("Start Time (days since peak)")
-    ax.yaxis.set_ticks_position('both')
-    fig.colorbar(mesh, label="TS")
-
-    # Find the cell with the largest TS value (ignoring NaNs from missing grid points)
-    max_st_idx, max_et_idx = np.unravel_index(np.nanargmax(TS_grid), TS_grid.shape)
-
-    # Outline that cell using its edge coordinates
-    rect = Rectangle(
-        (et_edges[max_et_idx], st_edges[max_st_idx]),  # lower-left corner
-        dx, dy,
-        fill=False, edgecolor='black', linewidth=2
-    )
-    ax.add_patch(rect)
-    if title is not None:
-        ax.set_title(title)
-        
-    plt.savefig(params["figdir"] + "TSGrid.pdf")
+    pc = ax.pcolormesh(XI, YI, ZI, shading="auto", rasterized=True)
+    fig.colorbar(pc, label="TS")
+    plt.xlabel("End Time (Days)")
+    plt.ylabel("Start Time (Days)")
+    plt.title(title if title else '')
+    plt.gca().yaxis.set_ticks_position('both')
+    plt.gca().xaxis.set_ticks_position('both')
+    plt.tight_layout()
+    plt.savefig(params["figdir"] + "TS_Grid_linear.pdf", dpi = 300)
     if show:
         plt.show()
+    else:
+        plt.close()
         
-       # Build 2D grid of TS values matching (st, et) order
-    Flux_grid = np.full((len(st_vals), len(et_vals)), np.nan)
-    et_idx = np.searchsorted(et_vals, et)
-    st_idx = np.searchsorted(st_vals, st)
-    Flux_grid[st_idx, et_idx] = Flux
+    xi = np.linspace(et.min(), et.max(), grid_res)
+    yi = np.linspace(st.min(), st.max(), grid_res)
+    XI, YI = np.meshgrid(xi, yi)
+    ZI = griddata((et, st), TS, (XI, YI), method="nearest")   # NaN outside the data's hull
 
-    # Cell edges (so cells are centered on data values)
-    dx = np.min(np.diff(et_vals))
-    dy = np.min(np.diff(st_vals))
-    et_edges = np.concatenate([et_vals - dx/2, [et_vals[-1] + dx/2]])
-    st_edges = np.concatenate([st_vals - dy/2, [st_vals[-1] + dy/2]])
-
+    ## Set anything where et >= st to NaN
+    ZI[YI >= XI] = np.nan
+    
     fig, ax = plt.subplots()
-    mesh = ax.pcolormesh(et_edges, st_edges, Flux_grid, shading='flat')
-    ax.set_xlabel("End Time (days since peak)")
-    ax.set_ylabel("Start Time (days since peak)")
-    ax.yaxis.set_ticks_position('both')
-    fig.colorbar(mesh, label="Flux")
-
-    # Find the cell with the largest TS value (ignoring NaNs from missing grid points)
-    max_st_idx, max_et_idx = np.unravel_index(np.nanargmax(Flux_grid), Flux_grid.shape)
-
-    # Outline that cell using its edge coordinates
-    rect = Rectangle(
-        (et_edges[max_et_idx], st_edges[max_st_idx]),  # lower-left corner
-        dx, dy,
-        fill=False, edgecolor='black', linewidth=2
-    )
-    ax.add_patch(rect)
-    if title is not None:
-        ax.set_title(title)
-        
-    plt.savefig(params["figdir"] + "FluxGrid.pdf")
+    pc = ax.pcolormesh(XI, YI, ZI, shading="auto", rasterized = True)
+    fig.colorbar(pc, label="TS")
+    plt.xlabel("End Time (Days)")
+    plt.ylabel("Start Time (Days)")
+    plt.title(title if title else '')
+    plt.gca().yaxis.set_ticks_position('both')
+    plt.gca().xaxis.set_ticks_position('both')
+    plt.tight_layout()
+    plt.savefig(params["figdir"] + "TS_Grid.pdf", dpi = 300)
     if show:
         plt.show()
-        
+    plt.close()
+
+    plt.scatter(et, st, c=TS, cmap='viridis', edgecolor='k')
+    plt.colorbar(label='TS')
+    plt.ylabel('Start Time (days since peak)')
+    plt.xlabel('End Time (days since peak)')
+    plt.title(title if title else 'TS Grid Search')
+    plt.gca().yaxis.set_ticks_position('both')
+    plt.gca().xaxis.set_ticks_position('both')
+    plt.tight_layout()
+    plt.savefig(params["figdir"] + "TS_Grid_scatter.pdf")
+    if show:
+        plt.show()
+    else:
+        plt.close()
+    
+    
     if return_TS:
         return maxTS, center
 if __name__ == "__main__":
@@ -507,4 +531,7 @@ if __name__ == "__main__":
     plot_TS_search(params)
     plot_light_curve(params)
     TS_hist(params)
-    TS_Grid(params)
+    try:
+        TS_Grid(params)
+    except:
+        print ("Grid generation failed; likely insufficient data")
