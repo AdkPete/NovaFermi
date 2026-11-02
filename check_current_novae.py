@@ -26,7 +26,7 @@ def check_all():
                 continue
             
             
-            max_TS, center = TS_Grid(params, return_TS = True, show = True, title = i)
+            max_TS, center = TS_Grid(params, return_TS = True, show = True, title = i, useall=True)
             
             print (f"Maximum TS for {i} is {max_TS}")
             rows.append([i, max_TS])
@@ -63,7 +63,8 @@ def monitor_nova(name):
     
 
 
-    max_TS, center = TS_Grid(params, return_TS = True, show = True, title = name)
+
+    max_TS, center = TS_Grid(params, return_TS = True, show = True, title = name, useall=True)
     #time.sleep(60)
 
     print (f"Maximum TS for {name} is {max_TS}")
