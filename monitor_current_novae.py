@@ -4,6 +4,10 @@ written by Peter Craig on 8/20/26
 Designed to monitor the population of current novae in Fermi, to check
 for significant detections. Will summarize with a table contanining each
 system being monitored and the maximum recovered TS value.
+Not intended for monitoring over very long timescales;
+May not behave as desired 26 weeks or more after a nova goes off;
+ for long-term analysis use a more standard analyze_fermi run
+
 '''
 
 import os
@@ -133,8 +137,18 @@ def update_weekly_data():
         
     if len(os.listdir('weekly/photon/')) > 26:
         # Remove the oldest files
-        files = sorted(os.listdir('weekly/photon/'))
-        for f in files[:-25]:
+        files = np.array(os.listdir('weekly/photon/'))
+        wknumb = []
+        for f in files:
+            if f.startswith('lat_photon_weekly_w') and f.endswith('.fits'):
+                wknumb.append(int(f.split('_')[3][1:]))
+            else:
+                wknumb.append(-1)
+        wknumb = np.array(wknumb)
+        sorted_indices = np.argsort(wknumb)
+        files = files[sorted_indices]
+        
+        for f in files[:-26]:
             os.remove(os.path.join('weekly/photon/', f))
     
     ## Last, but not least, get updated spacecraft file.
@@ -171,10 +185,21 @@ def update_weekly_data():
         print ("Warning: Expected 26 spacecraft files, but found {}. Please check the downloads.".format(len(files)))
         
     if len(files) > 26:
-        print ("Warning: More than 26 spacecraft files found. Removing oldest files.")
-        files = sorted(files)
+        files = np.array(files)
+        wknumb = []
+        for f in files:
+            if f.startswith('lat_spacecraft_weekly_w') and f.endswith('.fits'):
+                wknumb.append(int(f.split('_')[3][1:]))
+            else:
+                wknumb.append(-1)
+        wknumb = np.array(wknumb)
+        sorted_indices = np.argsort(wknumb)
+        files = files[sorted_indices]
+        
         for f in files[:-26]:
             os.remove(os.path.join('weekly/spacecraft/', f))
+        print ("Warning: More than 26 spacecraft files found. Removing oldest files.")
+        
 
     ## Last step is to combine the spacecraft files into a single file for analysis.
     os.chdir('weekly/spacecraft/')
@@ -222,47 +247,7 @@ def setup_new_nova(name):
     
     
     os.chdir(cwd)
-    
-def reset_results(name):
-    '''
-    Resets the results of a nova. Deletes results that might have been generated with incomplete data
-    '''
-    
-    
-    return 0 ## NO longer required. Kept temporarily for legacy reasons.
-    dirname = os.path.join(os.environ['FERMI_MONITOR'], name)
-    params= af.read_parameters(os.path.join(dirname, "parameters.yaml"))
-    cwd = os.getcwd()
-    os.chdir(dirname)
-    
-    if not os.path.exists(params["grid_logfile"]):
-        os.chdir(cwd)
-        return 0
-    
-    new_logfile = ""
-    f = open(params["grid_logfile"], 'r')
-    for i in f.readlines():
-        if "Flux" in i:
-            new_logfile += i
-            continue
-        
-        sl = i.split(",")
-        
-        end_met = float(sl[5])
-        data_end_met = float(sl[6])
-        
-        
-        if data_end_met < end_met: # Remove bins that are incomplete
-            continue
-        new_logfile += i
-        
-    f.close()
-    f = open(params["grid_logfile"], 'w')
-    f.write(new_logfile)
-    f.close()
-    os.chdir(cwd)
-    
-    
+
 def mark_result_as_incomplete(name):
     '''
     Marks the results of a nova as incomplete.
@@ -310,22 +295,31 @@ def cleanup_monitoring_data(name):
     for i in os.listdir("."):
         if i.endswith(".fits") or i.endswith(".log"):
             os.remove(i)
-    
-    os.chdir('../prune_files/')
-    for i in os.listdir("."):
-        if i.endswith(".fits") or i.endswith(".log"):
-            os.remove(i)
+    if os.path.exists('../prune_files/'):
+        os.chdir('../prune_files/')
+        for i in os.listdir("."):
+            if i.endswith(".fits") or i.endswith(".log"):
+                os.remove(i)
     os.chdir(cwd)
 
 def get_end_time(params, met=False):
     '''
     Gets the end time of the monitoring period, computed based on the end of
-    the current weekly data file.
+    the latest available weekly data file.
     '''
     
-    week = get_current_week_number()
+    week = get_current_week_number() + 1
     data_dir = os.environ['LAT_DATA']
+    
     fname = os.path.join(data_dir, f"weekly/photon/lat_photon_weekly_w{week}_p305_v001.fits")
+    if not os.path.exists(fname):
+        week -= 1
+        fname = os.path.join(data_dir, f"weekly/photon/lat_photon_weekly_w{week}_p305_v001.fits")
+        
+    if not os.path.exists(fname):
+        week -= 1
+        fname = os.path.join(data_dir, f"weekly/photon/lat_photon_weekly_w{week}_p305_v001.fits")
+    
     hdu = fits.open(fname)
     end_time = hdu[0].header['DATE-END'].split(".")[0]
     time = end_time
@@ -381,11 +375,10 @@ def main_loop(table_only=False, reset=True, name = None):
         
         params['max_end'] = stop
         params['max_start'] = stop
+        params['min_start'] = int(params['min_start'])
         
         if not table_only:
-            ## Run the analysis
-            if reset:
-                reset_results(names[i])
+            
             cleanup_monitoring_data(names[i])
             af.run_analysis(params)
             cleanup_monitoring_data(names[i])
@@ -394,7 +387,8 @@ def main_loop(table_only=False, reset=True, name = None):
         ## plot the results and get max TS
         max_ts , time_of_max = plc.TS_Grid(params, return_TS = True)
         print ("Maximum TS for {} is {}".format(names[i], max_ts))
-        if max_ts >= 25:
+        if max_ts >= 25: ##Note that this will include any bin above TS=25.
+            ## May include bins other than the standard monitoring, this is intentional.
             subject = "Fermi Nova Alert: {}".format(names[i])
             body = "The nova {} has been detected with a maximum TS of {} at time {}".format(names[i], max_ts, time_of_max)
             send_notification_email(subject, body)

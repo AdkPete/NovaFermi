@@ -20,7 +20,7 @@ def check_all():
                 os.chdir(pwd)
                 continue
             params = read_parameters(paramfile)
-            if not os.path.exists("likelihood_results.csv"):
+            if not os.path.exists(params["result_log"]):
                 print(f"likelihood_results.csv not found in {i}")
                 os.chdir(pwd)
                 continue
@@ -56,10 +56,6 @@ def monitor_nova(name):
         os.chdir(pwd)
         return
     params = read_parameters(paramfile)
-    if not os.path.exists(os.path.join(params["grid_outdir"], "grid_results.csv")):
-        print(f"grid_results.csv not found in {name}")
-        os.chdir(pwd)
-        return
     
 
 

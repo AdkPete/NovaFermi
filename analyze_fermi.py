@@ -75,10 +75,12 @@ def setup_events_file(params, clobber=False):
                 output += data_dir + i + "\n"
         f.write(output[:-1])
         f.close()
+    scfile = "None"
     for i in os.listdir(data_dir):
         if "_SC" in i and ".fits" in i:
             scfile = data_dir + i
-
+    if scfile == "None":
+        raise ValueError("No Spacecraft File Found")
     
     infile = '@events.txt'
     return infile , scfile
@@ -196,10 +198,9 @@ def read_spec_from_xml(xml_file, params):
     Function to read out spectral parameters for our nova from the 
     model xml file. Returns a dictionary with the parameters.
     '''
-    try:
-        tree = ET.parse(xml_file)
-    except:
-        breakpoint()
+
+    tree = ET.parse(xml_file)
+
     root = tree.getroot()
     
     for source in root:
@@ -286,34 +287,39 @@ def confirm_parameters(params, yaml_fname):
         if key not in params.keys():
             raise ValueError(f"Parameter {key} not found in current run.")
         if old_params[key] != params[key]:
+            match = False
             if not match:
                 print ("Warning, parameters have changed since last run.")
                 print ("Exiting, please change save location, or update parameters to match")
-            match = False
+        
             print (f"Parameter {key} has changed. Old: {old_params[key]}, New: {params[key]}")
     
     for key in old_spec_params.keys():
         if key not in spec_params.keys():
             print (f"Warning, spectral parameter {key} not found in current run.")
+            raise ValueError(f"Spectral parameter {key} not found in current run.")
         if old_spec_params[key] != spec_params[key]:
+            match = False
             if not match:
                 print ("Warning, spectral parameters have changed since last run.")
                 print ("Exiting, please change save location, or update parameters to match")
-            match = False
+            
             print (f"Spectral parameter {key} has changed. Old: {old_spec_params[key]}, New: {spec_params[key]}")
     
     for key in old_free_params.keys():
         if key not in free_params.keys():
             print (f"Warning, free parameter {key} not found in current run.")
+            raise ValueError(f"Free parameter {key} not found in current run.")
         if old_free_params[key] != free_params[key]:
+            match = False
             if not match:
                 print ("Warning, free parameters have changed since last run.")
                 print ("Exiting, please change save location, or update parameters to match")
-            match = False
+            
             print (f"Free parameter {key} has changed. Old: {old_free_params[key]}, New: {free_params[key]}")
             
     if not match:
-        sys.exit()
+        raise ValueError("Parameters have changed since last run.")
     return match
     
 def read_parameters(pfile):
@@ -360,7 +366,7 @@ def read_parameters(pfile):
             if params["data_path"] == "weekly":
                 infile , scfile = setup_weekly_files(params, clobber=True)
             else:
-                infile , scfile = setup_events_file(params, clobber=False)
+                infile , scfile = setup_events_file(params, clobber=True)
                 
             params["infile"] = infile
             params["scfile"] = scfile
@@ -391,24 +397,7 @@ def read_parameters(pfile):
             warning += " in future versions.\n"
             
             print (warning)
-            
-        '''
-        Now obsolete, all files merged.
-        params['lc_logfile'] = (params['lc_outdir']
-                                + "lightcurve_results.csv")
-            
-        params["avg_logfile"] = (params['av_outdir']
-                                + "average_results.csv")
-        
-        params["grid_logfile"] = (params['grid_outdir']
-                                + "grid_results.csv")
-        
-        params["mts_logfile"] = (params['tsm_outdir']
-                                + "mts_results.csv")
-        
-        params["bck_logfile"] = (params['bck_outdir']
-                                + "bck_results.csv")
-        '''
+
         
         return params
     
@@ -650,7 +639,10 @@ def prune_model(model_fname, params):
         if name not in source_cat.keys():
             print(name, 'is not in the source catalog')
             continue
-        variability = float(source_cat[name]['var'])
+        if source_cat[name]['var'] is None:
+            variability = 50 ## If no variability index, assume it is variable 
+        else:
+            variability = float(source_cat[name]['var'])
         counts = src_counts[name]
 
         if ROI_Center is None:
@@ -661,7 +653,7 @@ def prune_model(model_fname, params):
         # if variability index is the number in other code then its good. Code runs on photons need that from Peter (now)
 
         if float(ROI_Center) < 10:
-            ## Too far from our nova, remove from file
+            ## Is in our ROI, always keep.
             continue
         
         if variability > 30.58:
@@ -1021,7 +1013,8 @@ def fit_model(params, fheader, get_like, inmod = "No" , opt = 'NewMINUIT', silen
     
     #checklocks(lock)
     #subprocess.run(drmnfb_comm,shell=True)
-    #breakpoint()
+    
+
     obs = BinnedObs(srcMaps=src_name,
             binnedExpMap=f'{outdir}{params["name"]}{fheader}_BinnedExpMap.fits',
             expCube=f'{outdir}{params["name"]}{fheader}_ltCube.fits',irfs='P8R3_SOURCE_V3')
@@ -1063,11 +1056,11 @@ def fit_model(params, fheader, get_like, inmod = "No" , opt = 'NewMINUIT', silen
             likeobj=pyLike.NewMinuit(like.logLike)
             like.tol = 0.01
             checklocks(lock)
-            res = like.fit(verbosity=1)
+            res = like.fit(verbosity=1,covar=True,optObject=likeobj)
     print("Source Convergence Status" , likeobj.getRetCode())
     if get_like:
         
-        return res , like.flux(params["name"] , emin = params["emin"]) , like.model[params["name"]].funcs["Spectrum"]["Prefactor"]
+        return res , like.flux(params["name"] , emin = params["emin"],emax=params["emax"]) , like.model[params["name"]].funcs["Spectrum"]["Prefactor"]
     like.logLike.writeXml(f'{outdir}fit_model{fheader}.xml')
     Nova_flux = like.flux(params["name"] , emin = params["emin"], emax=params["emax"])
     Nova_flux_err = like.fluxError(params["name"], emin=params["emin"], emax=params["emax"])
@@ -1435,7 +1428,8 @@ def likelihood_wrapper(run_pars):
                 up_lim = FermiTools_UpperLim(run_pars[0] , run_pars[4], outdir = run_pars[7])
                 #F2 = -99
             except:
-                return [0,0,0,0]
+                ## Save w/ no upper limit and exit.
+                up_lim = -1
             
     runlogname = run_pars[7] + "runlog" + run_pars[4] + ".log"
     if run_pars[0]["runlog"]:
@@ -1527,22 +1521,7 @@ def light_curve_singleproc(params, clobber, log = "mp_log"):
         ts.append(i[2])
         time.append(i[3])
         tpeak.append(met_to_tpeak(i[3] , params))
-        
-    time = np.array(time)
-    Flux = np.array(Flux)
-    unc = np.array(unc)
-    ts = np.array(ts)
-    tpeak = np.array(tpeak)
 
-    det = np.where(ts >=4)
-    lim = np.where(ts < 4)
-    plt.scatter(tpeak[det] , Flux[det], color = "blue")
-    plt.errorbar(tpeak[det] , Flux[det] , unc[det] , ls = 'none', color = "blue")
-    plt.scatter(tpeak[lim] , Flux[lim] , color = "orange" , marker = "v")
-    plt.xlabel("Time since peak (days)")
-    plt.ylabel("Flux (ph / s / cm$^{-2}$)")
-    plt.savefig(params["figdir"] + "LC.pdf")
-    plt.close()
     
     return results
 
@@ -1715,7 +1694,7 @@ def false_positive_rate(params, clobber):
             
             param_row = [params, st, et, clobber, fheader, params["result_log"], lock, lcdir]
             param_row.append( params["cleanlc"])
-            param_row.append( params["cleanlc"])
+            
             center_t = met_to_tpeak(0.5 * (et + st), params)
             log_file = param_row[7] + param_row[5] + param_row[4] + f"_{int(center_t)}.csv"
             if not os.path.exists(log_file) or clobber:
@@ -1903,7 +1882,7 @@ def compute_upper_lim(params, fheader, outdir = "./"):
                 like.optimizer="NewMinuit"
                 res = like.fit(verbosity=1,covar=True,optObject=likeobj)
             except:
-                return np.inf
+                return np.inf, -np.inf
                 
         
         Flux = like.flux(params["name"] , emin = params["emin"], emax = params["emax"])
@@ -1912,21 +1891,21 @@ def compute_upper_lim(params, fheader, outdir = "./"):
     ## Setup starting point for root finding
 
     Like_cut = 2.71 / 2.0
-    L0 = res
+    L0 = res ## Best-fit Likelihood
     p_low = like.model[params["name"]].funcs["Spectrum"]["Prefactor"]
     p_low = np.log10(p_low)
     Fmax = 0.05
     p_high = np.log10(Fmax)
-    L_low = -1 * Like_cut ##Delta is 0 for the max likelihood, so this is DeltaL - 2.71/2.0
-    L_high = L(10 ** p_high)[0] - Like_cut
+    L_low = -1 * Like_cut ##DeltaL is 0 for the max likelihood, so this is DeltaL - 2.71/2.0
+    L_high = L(10 ** p_high)[0] - L0 - Like_cut
     
     if L_high < 0:
         p_high = 0.5
-        L_high = L(0.5)[0] - Like_cut
+        L_high = L(10 ** 0.5)[0] - L0 - Like_cut
         if L_high < 0:
             print ("UL Failure, could not find suitable bracket")
         
-            return -1
+            return [-1, -1, -1, -1]
     
     lpar = [p_low , p_high]
     Likes = [L_low , L_high]
@@ -2017,7 +1996,8 @@ def cleanup(params , fheader, all_files = False, outdir = "./"):
             continue
         elif ".csv" in i:
             continue
-        
+        if f"{params['name']}{fheader}_" not in i:
+            continue
         print (i)
         if "srcmap" in i: ## Source Maps
             os.remove(outdir + i)
@@ -2121,7 +2101,7 @@ def TS_Map(params, input_file, clobber):
     my_apps.TsMap['coordsys'] = "CEL"
     my_apps.TsMap['xref'] = params["ra"]
     my_apps.TsMap['yref'] = params["dec"]
-    my_apps.TsMap['proj'] = 'STG'
+    my_apps.TsMap['proj'] = 'AIT'
     if not os.path.exists(f"{outdir}{params['name']}_TSmap_background_resid.fits") or clobber:
         my_apps.TsMap.run()
         
@@ -2150,12 +2130,12 @@ def generate_residuals(params, clobber, fheader, lock=None,outdir = "./"):
     mmc = "gtmodel "
     mmc += f"srcmaps={outdir}{params['name']}{fheader}_srcmap.fits "
     mmc += f"srcmdl={outdir}fit_model{fheader}.xml "
-    mmc += f"outfile={outdir}{params['name']}_Model{fheader}.fits "
+    mmc += f"outfile={outdir}{params['name']}{fheader}_Model.fits "
     mmc += "irfs=CALDB "
     mmc += f"expcube={outdir}{params['name']}{fheader}_ltCube.fits "
     mmc += f"bexpmap={outdir}{params['name']}{fheader}_BinnedExpMap.fits"
     print (mmc)
-    if not os.path.exists(f"{outdir}{params['name']}_Model{fheader}.fits") or clobber:
+    if not os.path.exists(f"{outdir}{params['name']}{fheader}_Model.fits") or clobber:
         checklocks(lock)
         subprocess.run(mmc,shell=True)
     
@@ -2184,7 +2164,7 @@ def generate_residuals(params, clobber, fheader, lock=None,outdir = "./"):
     
     ##Finally, generate the actual residuals
 
-    model_hdu = fits.open(f"{outdir}{params['name']}_Model{fheader}.fits")
+    model_hdu = fits.open(f"{outdir}{params['name']}{fheader}_Model.fits")
     cmap_hdu = fits.open(cmap_name)
     
 
@@ -2192,6 +2172,9 @@ def generate_residuals(params, clobber, fheader, lock=None,outdir = "./"):
     plt.colorbar(label="Residual (Data - Model)")
     plt.savefig(f"{outdir}Residual_{fheader}.pdf")
     plt.close()
+    
+    cmap_hdu.close()
+    model_hdu.close()
     
 
 def get_grid_bins(params):
@@ -2202,8 +2185,8 @@ def get_grid_bins(params):
     
     start_mets = []
     end_mets = []
-    starts = np.arange(params["min_start"] , params["max_start"] , params["gridstep"])
-    ends = np.arange(params["min_end"] , params["max_end"] , params["gridstep"])
+    starts = np.arange(params["min_start"] , params["max_start"] + params["gridstep"] / 2.0 , params["gridstep"])
+    ends = np.arange(params["min_end"] , params["max_end"] + params["gridstep"] / 2.0, params["gridstep"])
     if params["min_start"] == params["max_start"]:
         starts = [params["min_start"]]
     if params["min_end"] == params["max_end"]:
@@ -2233,8 +2216,8 @@ def get_monitoring_bins(params, min_step = 0.25):
     
     start_mets = []
     end_mets = []
-    starts = np.arange(params["min_start"] , params["max_start"] , min_step)
-    ends = np.arange(params["min_end"] , params["max_end"] , min_step)
+    starts = np.arange(params["min_start"] , params["max_start"] + min_step / 2.0 , min_step)
+    ends = np.arange(params["min_end"] , params["max_end"] + min_step / 2.0 , min_step)
     if params["min_start"] == params["max_start"]:
         starts = [params["min_start"]]
     if params["min_end"] == params["max_end"]:
@@ -2348,7 +2331,11 @@ def TS_Grid(params):
 def run_analysis(params):
     
     check_data_valid_times()
-    ##Average Run First
+    
+    if not params["gen_av"] and params["use_pruner"]:
+        if not os.path.exists(params['name'] + "_pruned_model.xml"):
+            raise ValueError(f"to use the pruning code, an average run is required, or produce your own {params['name'] + '_pruned_model.xml'} file")
+                              
     if params["gen_av"]:
         
 

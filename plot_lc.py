@@ -52,34 +52,6 @@ def get_size(width , fraction = 1.0):
 
     return fig_dim
 
-def plot_TS_search(params):
-    fname = params["tsm_outdir"] + "all_fits.csv"
-    if not os.path.exists(fname):
-        print ("No TS Search results found, exiting")
-        return 0
-    f = open(fname)
-    
-    start = []
-    window = []
-    TS = []
-    for i in f.readlines():
-        if "#" in i:
-            continue
-        sl = i.split(",")
-        start.append(float(sl[0]))
-        window.append(float(sl[1]))
-        TS.append(float(sl[2]))
-        
-    plt.scatter(start , window , c = TS)
-    plt.colorbar(label = "TS")
-    plt.xlabel("Start Time (days since peak)")
-    plt.ylabel("Window Width (days)")
-    plt.gca().yaxis.set_ticks_position('both')
-    plt.gca().xaxis.set_ticks_position('both')
-    plt.savefig(params["figdir"] + "Fit_Monitor.pdf")
-    plt.close()
-    
-
 def plot_light_curve(params, display=False, compile_csv = None):
     '''
     Function to plot light curve results from analyze_fermi
@@ -149,9 +121,9 @@ def plot_light_curve(params, display=False, compile_csv = None):
     fig = plt.figure(figsize = fdim)
     plt.rcParams.update({'font.size': 8})
     plt.scatter(Time[lim] , upper_lim[lim] , color = "orange" , marker = "v")
-    plt.errorbar(Time[lim], upper_lim[lim] , xerr = ww[lim] , color = "orange" , ls = "none")
+    plt.errorbar(Time[lim], upper_lim[lim] , xerr = ww[lim]/2.0 , color = "orange" , ls = "none")
     plt.scatter(Time[det] , Flux[det], color = "blue")
-    plt.errorbar(Time[det] , Flux[det] , yerr = Unc[det] , xerr = ww[det] , ls = 'none', color = "blue")
+    plt.errorbar(Time[det] , Flux[det] , yerr = Unc[det] , xerr = ww[det]/2.0 , ls = 'none', color = "blue")
     plt.yscale('log')
     plt.xlabel("Time Since Eruption (days)")
     plt.ylabel("Flux (ph / s / cm$^{2}$)")
@@ -233,9 +205,12 @@ def read_results(params, mode):
     st = []
     et = []
     upper_lim = []
+    header= True
     for i in f.readlines():
-        if "TS" in i:
+        if header:
+            header = False
             continue
+        
         sl = i.split(",")
         stt = float(sl[4])
         ett = float(sl[5])
@@ -267,7 +242,7 @@ def read_results(params, mode):
     et = np.array(et)
     return TS , Flux , Unc , upper_lim , st , et
 
-def TS_hist(params, compile_csv = None):
+def TS_hist(params, compile_csv = None, df = 3):
     
     '''
     Function to display a histogram of TS values, intended for testing the
@@ -276,6 +251,7 @@ def TS_hist(params, compile_csv = None):
     simply returns 0.
     Also, will print out some statistics relevant for testing if the 
     TS values are behaving as expected.
+    df is the number of degrees of freedom for the expected TS Distribution.
     '''
     
     if "bck_outdir" not in params.keys():
@@ -303,7 +279,7 @@ def TS_hist(params, compile_csv = None):
     plt.savefig(params["figdir"] + "TS_Hist.pdf")
     plt.close()
     
-    df = 3
+    
     xarr2 = np.linspace(np.min(0) , 35 , 1000)
     chi2arr = stats.chi2.pdf(xarr2,df)
     
@@ -315,7 +291,7 @@ def TS_hist(params, compile_csv = None):
     plt.plot(xarr2 , chi2arr , color = "orange")
     plt.axvline(4 , color = "orange" , ls = "--")
     #plt.xlabel("Test Statistic")
-    plt.ylabel("Number of Trials")
+    plt.ylabel("Trial Density")
     plt.tight_layout()
     plt.gca().yaxis.set_ticks_position('both')
     plt.gca().xaxis.set_ticks_position('both')
@@ -406,8 +382,8 @@ def TS_hist(params, compile_csv = None):
     plt.gca().yaxis.set_ticks_position('both')
     plt.gca().xaxis.set_ticks_position('both')
     plt.tight_layout()
-    plt.show()
-    
+    plt.savefig(params["figdir"] + "Bck_TS_with_widths.pdf")
+    plt.close()
 
     
 def TS_Grid(params, return_TS = False, show = False, title = None, useall=True):
@@ -528,7 +504,6 @@ def TS_Grid(params, return_TS = False, show = False, title = None, useall=True):
         return maxTS, center
 if __name__ == "__main__":
     params = af.read_parameters(sys.argv[1])
-    plot_TS_search(params)
     plot_light_curve(params)
     TS_hist(params)
     try:
