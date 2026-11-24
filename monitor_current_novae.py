@@ -385,7 +385,7 @@ def main_loop(table_only=False, reset=True, name = None):
             #mark_result_as_incomplete(names[i])
             
         ## plot the results and get max TS
-        max_ts , time_of_max = plc.TS_Grid(params, return_TS = True)
+        max_ts , time_of_max = plc.TS_Grid(params, return_TS = True, useall = True)
         print ("Maximum TS for {} is {}".format(names[i], max_ts))
         if max_ts >= 25: ##Note that this will include any bin above TS=25.
             ## May include bins other than the standard monitoring, this is intentional.

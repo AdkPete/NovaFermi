@@ -386,7 +386,7 @@ def TS_hist(params, compile_csv = None, df = 3):
     plt.close()
 
     
-def TS_Grid(params, return_TS = False, show = False, title = None, useall=True):
+def TS_Grid(params, return_TS = False, show = False, title = None, useall=False):
     
     '''
     Plots the results from a TS Grid search

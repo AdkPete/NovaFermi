@@ -698,7 +698,9 @@ def gen_model(params, fheader, lock=None, outdir = "./", skip_pruning = False):
     if os.path.exists(params['name'] + "_pruned_model.xml"):
         params['input_model'] = params['name'] + "_pruned_model.xml"
         return 0
-
+    elif os.path.exists(model_fname):
+        return 0
+    
     if not os.path.exists(model_fname):
         xml_command = f' make4FGLxml {params["source_cat"]} --event_file {gti} --output_name '
         xml_command += f'{model_fname} --free_radius 5.0 --norms_free_only '
@@ -1159,7 +1161,7 @@ compute_counts = False, skip_pruning = False):
     
     #return 1e-7,1e-8,157
 
-    runlogname = "runlog" + fheader + ".log"
+    runlogname = outdir + "runlog" + fheader + ".log"
     
     if params["runlog"]:
         rf = open(runlogname , "a")
@@ -1321,9 +1323,11 @@ def FermiTools_UpperLim(params, fheader, outdir = "./"):
     '''
     
     
-    if not os.path.exists(f'{outdir}upper_lim_model{fheader}.xml'):
-        mod = setup_pl(params,1.0,-2.1 , free = True)
-        gen_ul_xml(f"{outdir}fit_model{fheader}.xml", f'{outdir}upper_lim_model{fheader}.xml',
+    if os.path.exists(f'{outdir}upper_lim_model{fheader}.xml'):
+        os.remove(f'{outdir}upper_lim_model{fheader}.xml')
+        
+    mod = setup_pl(params,1.0,-2.1 , free = True)
+    gen_ul_xml(f"{outdir}fit_model{fheader}.xml", f'{outdir}upper_lim_model{fheader}.xml',
                 params["name"], mod)
     obs = BinnedObs(srcMaps=f"{outdir}{params['name']}{fheader}_srcmap.fits",
                 binnedExpMap=f'{outdir}{params["name"]}{fheader}_BinnedExpMap.fits',
@@ -1447,84 +1451,6 @@ def likelihood_wrapper(run_pars):
         cleanup(run_pars[0] , run_pars[4], all_files = True, outdir = run_pars[7])
     return [F , unc , ts, (run_pars[2] - run_pars[1]) / 2.0]
 
-def light_curve_singleproc(params, clobber, log = "mp_log"):
-    '''
-    Function to build a light curve
-    Uses window width in parameter file, and step size
-    This is the multiprocessing version of this function
-    This version in particular is only called if nproc = 1
-    Mainly intended for debugging, but the behaviour is identical
-    to the multiproc version (except single-processed).
-    Parameters
-    __________
-    params : dict : parameter dict from read_parameters
-    clobber : boolean : If true, overwrite existing files
-    log : string : base file name to load data
-    
-    Returns
-    ________
-    None
-    '''
-    
-
-    
-    if params["up_lim_lc"]:
-        params["upper_limit"] = True
-        
-    ## Get start and end times for LC.
-    start = tpeak_to_met(params["lc_start"], params)
-    end = tpeak_to_met(params["lc_end"], params)
-    lcdir = params["lc_outdir"]
-    log = log
-    ## Start by setting up our parameter array
-    param_array = []
-    
-    
-    window_half_seconds = 12 * 60 * 60 * params["window"]
-    step_seconds = 24 * 60 * 60 * params["lcstep"]
-    t = start + step_seconds / 2.0
-    tpeak_start = met_to_tpeak(start, params)
-
-    
-    id = 0
-    while t < end:
-        
-        fheader = f"_{params['window']}_{params['lcstep']}_{tpeak_start}_st{id}"
-        st = t - window_half_seconds
-        et = t + window_half_seconds
-        param_row = [params, st, et, clobber, fheader, log, None, lcdir]
-        param_row.append( params["cleanlc"])
-        center_t = met_to_tpeak(t , params)
-        log_file = param_row[7] + param_row[5] + param_row[4] + f"_{int(center_t)}.csv"
-        if not os.path.exists(log_file):
-            
-            param_array.append(param_row)
-        t += step_seconds
-        id += 1
-    
-    results = []
-    for parameter_row in param_array:
-        
-        result = likelihood_wrapper(parameter_row)
-        results.append(result)
-        #results = p.map(likelihood_wrapper , param_array)
-    np.save(log + ".npy" , results)
-    
-    Flux = []
-    unc = []
-    ts = []
-    time = []
-    tpeak = []
-    for i in results:
-        Flux.append(i[0])
-        unc.append(i[1])
-        ts.append(i[2])
-        time.append(i[3])
-        tpeak.append(met_to_tpeak(i[3] , params))
-
-    
-    return results
-
 def get_light_curve_bins(params):
     '''
     function to get met start and end times for light curve bins
@@ -1573,8 +1499,7 @@ def light_curve_multiproc(params , clobber):
 
     lcdir = params["lc_outdir"]
 
-    if params["up_lim_lc"]:
-        params["upper_limit"] = True
+    params["upper_limit"] = params["up_lim_lc"]
     
     ## Start by setting up our parameter array
     param_array = []
@@ -1882,7 +1807,7 @@ def compute_upper_lim(params, fheader, outdir = "./"):
                 like.optimizer="NewMinuit"
                 res = like.fit(verbosity=1,covar=True,optObject=likeobj)
             except:
-                return np.inf, -np.inf
+                return np.nan, np.nan
                 
         
         Flux = like.flux(params["name"] , emin = params["emin"], emax = params["emax"])
@@ -1909,6 +1834,8 @@ def compute_upper_lim(params, fheader, outdir = "./"):
     
     lpar = [p_low , p_high]
     Likes = [L_low , L_high]
+    if not np.isfinite(L_low) or not np.isfinite(L_high):
+        return [-1, -1, -1, -1]
     fm = []
     Lm = []
     lmids = []
@@ -1930,6 +1857,8 @@ def compute_upper_lim(params, fheader, outdir = "./"):
             
         mid_p = (p_low + p_high) / 2.0
         L_mid , flux_mid= L(10 ** mid_p)
+        if not np.isfinite(L_mid):
+            return [-1, -1, -1, -1]
         L_mid = L_mid  - L0 - Like_cut
         fm.append(flux_mid)
         lpar.append(mid_p)
@@ -1961,7 +1890,8 @@ def compute_upper_lim(params, fheader, outdir = "./"):
         Flux_high = -1
     
     l_mid , Flux_final = L( 10 ** ( (p_high + p_low) / 2.0) ) 
-    
+    if not np.isfinite(l_mid) or not np.isfinite(Flux_final):
+        return [-1, -1, -1, -1]
 
     return Flux_final , Flux_low , Flux_high , l_mid - L0
 
@@ -2335,7 +2265,10 @@ def run_analysis(params):
     if not params["gen_av"] and params["use_pruner"]:
         if not os.path.exists(params['name'] + "_pruned_model.xml"):
             raise ValueError(f"to use the pruning code, an average run is required, or produce your own {params['name'] + '_pruned_model.xml'} file")
-                              
+    elif not params["gen_av"]:
+        if not os.path.exists(params['input_model']):
+            raise ValueError(f"Before multiprocessing steps (lc or TS Grid), an average run is required, or produce your own {params['input_model']} file")
+        
     if params["gen_av"]:
         
 
@@ -2393,11 +2326,8 @@ def run_analysis(params):
         TS_Map(params, params["av_outdir"] + "fit_model.xml", False)
         
     
-        
-    ## Build a light curve
-    if params["nproc"] == 1 and params["gen_lc"]:
-        light_curve_singleproc(params , params["clobber"])
-    elif params["gen_lc"]:
+
+    if params["gen_lc"]:
         start = time.time()
         light_curve_multiproc(params , params["clobber"])
         end = time.time()
