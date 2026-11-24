@@ -1,7 +1,8 @@
 #name
+#C_Aur_26 Was a new transient, but not a nova.
 V8056_Sgr
-N_Sgr_26b
-N_Sge_26
+#N_Sgr_26b Monitoring stopped on 11/2/26; has faded by ~5 mag, TS dropping steadily.
+#N_Sge_26 Monitoring stopped on 11/2/26; has faded by 6 mag, TS is now consistently low
 #V8055_Sgr Monitoring stopped on 9/9/26. Has faded to 3.5+ mags below peak, max TS is less than 6, unlikely candidate for a Fermi detection.
 V1452_Tau
 AT2026_stb
