@@ -24,6 +24,8 @@ import gc
 import scipy.optimize as opt
 import contextlib
 import traceback
+from astropy.coordinates import SkyCoord
+from astroquery.fermi import FermiLAT
 
 
 # for reading and editing XML files.
@@ -63,7 +65,7 @@ def setup_events_file(params, clobber=False):
     event_file = "events.txt"
 
     data_dir = params["data_path"]
-    
+
     if os.path.exists(event_file) and clobber:
         os.remove(event_file)
         
@@ -366,6 +368,7 @@ def read_parameters(pfile):
             if params["data_path"] == "weekly":
                 infile , scfile = setup_weekly_files(params, clobber=True)
             else:
+                query_fermi_data(params); exit()
                 infile , scfile = setup_events_file(params, clobber=True)
                 
             params["infile"] = infile
@@ -400,7 +403,91 @@ def read_parameters(pfile):
 
         
         return params
+
+def query_fermi_data(params):
+    '''
+    Function to query the Fermi data automatically. Will check to see if
+    data already exists. If user-downloaded data is there, we don't do
+    anything, otherwise we check if the downloaded data has adequate
+    time coverage, and download new data if not.
+    '''
+
+    data_dir = params["data_path"]
+    log = "data_log.log"
+    has_backups = False
+    start = tpeak_to_met(params['earliest_time'], params)
+    end = tpeak_to_met(params['latest_time'], params)
+    if not os.path.exists(data_dir):
+        print ("No Data Found, running Fermi Query")
+        os.mkdir(data_dir)
+
+    elif len(os.listdir(data_dir)) == 0:
+        print ("No Data Found, running Fermi Query")
+
+    elif log not in os.listdir(data_dir):
+        print ("User-Downloaded Data Found, Skipping Fermi Query")
+        return 0
     
+    else:
+
+        with open(os.path.join(data_dir,log)) as f:
+
+            log_start, log_end = f.readlines()[0].split(":")
+            if float(log_start) < start or float(log_end) > end:
+                for i in os.listdir(data_dir):
+                    if ".fits" in i and "backup" not in i:
+                        new_fname = os.path.join(data_dir, i.split(".")[0] + "backup.fits")
+
+                        os.rename(os.path.join(data_dir,i), new_fname)
+                        has_backups = True
+            else: #* Adequate data already exists, so don't download anything
+                return 0
+            
+    coord = SkyCoord(params['ra'],params['dec'], unit='deg', frame = 'icrs')
+
+    result = FermiLAT.query_object(coord, searchradius = params['roi'], 
+                                   energyrange_MeV=f"{params['emin']},{params['emax']}", 
+                                   timesys = "MET", obsdates = f"{start},{end}")
+    breakpoint()
+    work_dir = os.getcwd()
+    os.chdir(data_dir)
+    for i in result:
+        subprocess.run(f"wget {i}", shell=True, check=True)
+
+
+    if not has_backups:
+        with open(log, "w") as f:
+            f.write(f"{start}:{end}")
+
+        os.chdir(work_dir)
+
+        return 0
+
+    # * Check that we've actually downloaded some data before deleting
+    # * backup files
+    SC = False
+    PH = False
+    for i in os.listdir():
+        if i.endswith(".fits") and "SC" in i and "backup" not in i:
+            SC = True
+        if i.endswith(".fits") and "PH" in i and "backup" not in i:
+            PH = True
+
+    if PH and SC:
+        for i in os.listdir():
+            if "backup" in i:
+                os.remove(i)
+
+    else:
+        os.chdir(work_dir)
+        print ("Warning! Failed to download new data.")
+        raise ValueError
+    
+    with open(log, "w") as f:
+           f.write(f"{start}:{end}")
+    os.chdir(work_dir)
+
+    return 0
 def save_result(params, met_start, met_end, flux, flux_err, ts, upper_limit,
          used_param_file, lock=None):
     '''
@@ -871,8 +958,12 @@ def gen_srcmap(params, clobber, fheader, lock=None, outdir = "./"):
             split_names.append(n_src_name)
             ti += 1
             n_src_name = src_name + f"_{ti}.fits"
-        print (f"Source map appears to have been split into {len(split_names)} files. Running merger function.")
+        message = f"Source map appears to have been split into {len(split_names)} files."
+        print (message)
+
         src_merger(split_names, src_name)
+
+        
 def bin_data(params, clobber, fheader, lock=None, outdir = "./"):
     '''
     Function to generate counts maps / cubes
@@ -2357,6 +2448,5 @@ if __name__ == "__main__":
     paramfile = sys.argv[1]
     params = read_parameters(paramfile)
     print_params(params)
-
     ## Run our analysis
     run_analysis(params)
